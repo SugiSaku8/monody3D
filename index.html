@@ -8,22 +8,29 @@
         body { margin: 0; overflow: hidden; }
         canvas { display: block; }
     </style>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.168.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.168.0/examples/jsm/"
+        }
+    }
+    </script>
 </head>
 <body>
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "https://unpkg.com/three@0.168.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.168.0/examples/jsm/"
-            }
-        }
-        </script>
-        <script type="module">
-            // Step 10: チャンクの動的ロード/アンロード（プレイヤー追従） (エラー修正版)
-            import * as THREE from 'three';
-            import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-            // --- Step 4/6/7/8/9 のコード: チャンク関連の定数と関数 ---
+    <script type="module">
+        // Step 11: Perlinノイズによる簡単な地形生成
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        // --- Step 11 で追加したコード: Perlinノイズライブラリのインポート ---
+        import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js';
+        // --- Step 11 のコード ここまで ---
+    
+            // --- Step 4/6/7/8/9/10 のコード: チャンク関連の定数と関数 ---
             const CHUNK_SIZE = 32;
+            // --- Step 11 で追加したコード: 地形解像度の定義 ---
+            const TERRAIN_RESOLUTION = 16; // 1チャンクを16x16のグリッドに分割 (16+1 = 17頂点/辺)
+            // --- Step 11 のコード ここまで ---
             const RENDER_DISTANCE = 2;
     
             function worldToChunkCoord(worldCoord) {
@@ -53,10 +60,7 @@
             // --- Step 9 のコード ここまで ---
     
             // --- Step 10 で追加したコード: チャンク管理 ---
-            // *** 修正: scene の宣言を関数定義より前に移動 ***
-            const scene = new THREE.Scene(); // <-- 重要: ここに移動
-    
-            // プレイヤーの現在のチャンク座標 (初期値)
+            const scene = new THREE.Scene();
             let playerChunkX = worldToChunkCoord(playerPosition.x);
             let playerChunkY = worldToChunkCoord(playerPosition.y);
             let playerChunkZ = worldToChunkCoord(playerPosition.z);
@@ -64,17 +68,105 @@
             console.log(`プレイヤーの初期位置: (${playerPosition.x}, ${playerPosition.y}, ${playerPosition.z}) m`);
             console.log(`プレイヤーの初期所属チャンク: (${playerChunkX}, ${playerChunkY}, ${playerChunkZ})`);
     
-            // ロード済みチャンクを管理するMap (キー: "cx,cy,cz", 値: { wireframe, floor })
             const loadedChunks = new Map();
     
-            /**
-             * チャンク座標オブジェクトからキー文字列を生成
-             * @param {{cx: number, cy: number, cz: number}} chunkCoord - チャンク座標オブジェクト
-             * @returns {string} キー文字列 ("cx,cy,cz")
-             */
             function getChunkKey(chunkCoord) {
                  return `${chunkCoord.cx},${chunkCoord.cy},${chunkCoord.cz}`;
             }
+    
+            // --- Step 11 で追加/変更したコード: ノイズ地形生成関数 ---
+            /**
+             * Perlinノイズを使って地形メッシュを生成する
+             * @param {number} cx - チャンクX座標
+             * @param {number} cy - チャンクY座標 (Yオフセットとして使用)
+             * @param {number} cz - チャンクZ座標
+             * @returns {THREE.Mesh} 地形メッシュ
+             */
+            function createNoiseTerrain(cx, cy, cz) {
+                // 1. ImprovedNoise インスタンスを作成
+                const perlin = new ImprovedNoise();
+    
+                // 2. ジオメトリとマテリアルの準備
+                const geometry = new THREE.BufferGeometry();
+                const material = new THREE.MeshStandardMaterial({
+                    color: 0x00aa00, // 緑色
+                    wireframe: false, // ワイヤーフレームをオフ
+                    flatShading: false // スムーズシェーディング
+                });
+    
+                // 3. 頂点データの準備
+                const segments = TERRAIN_RESOLUTION;
+                const vertices = [];
+                const indices = [];
+                const normals = []; // 法線（今回は省略して自動計算に任せる）
+                const uvs = []; // UV座標（今回は省略）
+    
+                const halfSize = CHUNK_SIZE / 2;
+                const segmentSize = CHUNK_SIZE / segments; // 1グリッドのサイズ (32/16 = 2m)
+    
+                // 4. 頂点グリッドの生成と高さ計算
+                for (let z = 0; z <= segments; z++) {
+                    for (let x = 0; x <= segments; x++) {
+                        // チャンク内ローカル座標 (0 から CHUNK_SIZE)
+                        const localX = x * segmentSize;
+                        const localZ = z * segmentSize;
+    
+                        // ワールド座標 (ノイズ計算用)
+                        const worldX = cx * CHUNK_SIZE + localX;
+                        const worldZ = cz * CHUNK_SIZE + localZ;
+    
+                        // 5. Perlinノイズで高さを計算
+                        // スケールファクターを調整して、起伏の大きさを変える
+                        const scale = 0.05; // この値を変えると起伏の細かさが変わる
+                        // オクターブやラクロニアリティなどの高度な設定も可能
+                        const height = perlin.noise(worldX * scale, 0, worldZ * scale) * 5; // *5 で高さのスケール調整
+    
+                        // Y座標はチャンクのベース高さ + ノイズ高さ
+                        // cy * CHUNK_SIZE がチャンクのYオフセット
+                        const worldY = cy * CHUNK_SIZE + height;
+    
+                        // 頂点を追加 [x, y, z]
+                        vertices.push(localX - halfSize, worldY, localZ - halfSize); // チャンク中心を原点にするため halfSize を引く
+    
+                        // UV座標を追加 (簡略化)
+                        uvs.push(x / segments, 1 - z / segments);
+                    }
+                }
+    
+                // 6. インデックスデータの生成 (三角形の面を定義)
+                for (let z = 0; z < segments; z++) {
+                    for (let x = 0; x < segments; x++) {
+                        const a = x + (segments + 1) * z;
+                        const b = x + (segments + 1) * (z + 1);
+                        const c = (x + 1) + (segments + 1) * (z + 1);
+                        const d = (x + 1) + (segments + 1) * z;
+    
+                        // 2つの三角形で四角形グリッドを構成
+                        indices.push(a, b, d);
+                        indices.push(b, c, d);
+                    }
+                }
+    
+                // 7. BufferGeometry にデータを設定
+                geometry.setIndex(indices);
+                geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+                geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+                // 法線は自動計算
+                geometry.computeVertexNormals();
+    
+                // 8. メッシュを作成して返す
+                const terrainMesh = new THREE.Mesh(geometry, material);
+                // メッシュの位置をチャンクの中心に設定 (Yは0で、頂点のY座標に高さが含まれている)
+                terrainMesh.position.set(
+                    chunkToWorldCenter(cx),
+                    0, // 高さは頂点データに含まれている
+                    chunkToWorldCenter(cz)
+                );
+                // Y回転やスケールは通常不要
+    
+                return terrainMesh;
+            }
+            // --- Step 11 のコード ここまで ---
     
             /**
              * 指定されたチャンクをロード（生成・表示）する
@@ -92,12 +184,20 @@
                 }
     
                 const wireframe = createChunkWireframe(chunkCoord.cx, chunkCoord.cy, chunkCoord.cz, color);
-                const floor = createChunkFloor(chunkCoord.cx, chunkCoord.cy, chunkCoord.cz);
+                // --- Step 11 で変更したコード: 床の代わりにノイズ地形を生成 ---
+                // const floor = createChunkFloor(chunkCoord.cx, chunkCoord.cy, chunkCoord.cz); // <-- 古い床生成をコメントアウト
+                const terrain = createNoiseTerrain(chunkCoord.cx, chunkCoord.cy, chunkCoord.cz); // <-- 新しいノイズ地形生成
+                // --- Step 11 のコード ここまで ---
     
-                scene.add(wireframe); // <-- scene がここで使える
-                scene.add(floor);
+                scene.add(wireframe);
+                // --- Step 11 で変更したコード: 地形を追加 ---
+                scene.add(terrain); // <-- 地形を追加
+                // --- Step 11 のコード ここまで ---
     
-                loadedChunks.set(key, { wireframe, floor });
+                // --- Step 11 で変更したコード: loadedChunks に terrain を保存 ---
+                // loadedChunks.set(key, { wireframe, floor }); // <-- 古い保存をコメントアウト
+                loadedChunks.set(key, { wireframe, terrain }); // <-- 新しい保存 (terrain を含む)
+                // --- Step 11 のコード ここまで ---
             }
     
             /**
@@ -110,22 +210,35 @@
                     return;
                 }
     
-                scene.remove(chunkData.wireframe); // <-- scene がここで使える
-                scene.remove(chunkData.floor);
+                scene.remove(chunkData.wireframe);
+                // --- Step 11 で変更したコード: 地形を削除 ---
+                // scene.remove(chunkData.floor); // <-- 古い床削除をコメントアウト
+                scene.remove(chunkData.terrain); // <-- 新しい地形削除
+                // --- Step 11 のコード ここまで ---
+    
+                // メモリ解放 (念のため)
+                if (chunkData.terrain) {
+                    chunkData.terrain.geometry.dispose();
+                    chunkData.terrain.material.dispose();
+                }
+                if (chunkData.wireframe) {
+                    chunkData.wireframe.geometry.dispose();
+                    chunkData.wireframe.material.dispose();
+                }
     
                 loadedChunks.delete(key);
             }
     
+    
             // 初回ロード: プレイヤー周囲のチャンクをロード
             const initialVisibleChunks = calculateVisibleChunks(playerChunkX, playerChunkY, playerChunkZ);
             initialVisibleChunks.forEach(chunkCoord => {
-                 loadChunk(chunkCoord); // <-- loadChunk がここで呼び出される
+                 loadChunk(chunkCoord);
             });
             console.log(`初期ロード: ${initialVisibleChunks.length} 個のチャンクをロードしました。`);
-            // --- Step 10 のコード ここまで ---
     
     
-            // --- Step 5/7/8 のコード: チャンクの可視化・床生成・プレイヤー関連関数 ---
+            // --- Step 5/7/8 のコード: チャンクの可視化・プレイヤー関連関数 ---
             function chunkToWorldCenter(chunkCoord) {
                 return chunkCoord * CHUNK_SIZE + CHUNK_SIZE / 2;
             }
@@ -142,6 +255,8 @@
                 return chunkWireframe;
             }
     
+            // --- Step 11 で変更したコード: 古い床生成関数はコメントアウト ---
+            /*
             function createChunkFloor(cx, cy, cz) {
                 const floorGeometry = new THREE.PlaneGeometry(CHUNK_SIZE, CHUNK_SIZE);
                 const r = Math.abs(cx * 30) % 256;
@@ -159,40 +274,53 @@
                 floorMesh.rotation.x = -Math.PI / 2;
                 return floorMesh;
             }
+            */
+            // --- Step 11 のコード ここまで ---
             // --- Step 5/7/8 のコード ここまで ---
     
     
             // --- 以前のコード（Step 1-3）---
-            // *** 修正: scene の宣言は Step 10 に移動したので、ここでは削除 ***
-            // const scene = new THREE.Scene(); // <-- この行を削除
             const camera = new THREE.PerspectiveCamera(
                 75,
                 window.innerWidth / window.innerHeight,
                 0.1,
-                1000
+                10000 // 描画距離を少し伸ばす
             );
     
             const renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(window.devicePixelRatio);
+            // --- Step 11 で追加したコード: ライティングの追加 ---
+            // 基本的なライティングをシーンに追加
+            const ambientLight = new THREE.AmbientLight(0x606060); // 環境光
+            scene.add(ambientLight);
+    
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1); // 平行光源
+            directionalLight.position.set(1, 1, 0.5).normalize();
+            scene.add(directionalLight);
+            // --- Step 11 のコード ここまで ---
             document.body.appendChild(renderer.domElement);
             // --- 以前のコード ここまで ---
     
     
             // --- Step 8 で追加/変更したコード: プレイヤーとカメラ追従 ---
             const playerGeometry = new THREE.BoxGeometry(1, 2, 1);
-            const playerMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            // --- Step 11 で変更したコード: マテリアルを MeshStandardMaterial に変更 ---
+            // const playerMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 }); // <-- コメントアウト
+            const playerMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 }); // <-- MeshStandardMaterial を使用
+            // --- Step 11 のコード ここまで ---
             const playerMesh = new THREE.Mesh(playerGeometry, playerMaterial);
             playerMesh.position.copy(playerPosition);
-            scene.add(playerMesh); // <-- scene がここで使える
+            scene.add(playerMesh);
             console.log("プレイヤーメッシュを追加しました。");
     
             const controls = new OrbitControls(camera, renderer.domElement);
             controls.target.copy(playerPosition);
+            // カメラの初期位置を少し調整（プレイヤーの上の方から見るように）
             camera.position.set(
                 playerPosition.x,
-                playerPosition.y + 5,
-                playerPosition.z + 10
+                playerPosition.y + 10, // 上方 10m
+                playerPosition.z + 15  // 後方 15m
             );
             camera.lookAt(playerPosition);
     
@@ -231,12 +359,15 @@
                 velocityY -= GRAVITY * delta;
                 playerMesh.position.y += velocityY * delta;
     
-                const floorHeight = playerChunkY * CHUNK_SIZE;
-                if (playerMesh.position.y <= floorHeight + 1) {
-                    playerMesh.position.y = floorHeight + 1;
+                // --- Step 11 で変更したコード: 着地判定の簡易化 ---
+                // const floorHeight = playerChunkY * CHUNK_SIZE; // <-- 古い方法
+                // 簡易的な着地判定: Y座標が0以下になったら着地 (地形の高さに対応していないため暫定)
+                if (playerMesh.position.y <= 1) { // プレイヤーの足元が地面に着く高さ
+                    playerMesh.position.y = 1;
                     velocityY = 0;
                     isOnGround = true;
                 }
+                // --- Step 11 のコード ここまで ---
     
                 const playerDirection = camera.rotation.y;
     
@@ -314,8 +445,8 @@
                 renderer.setPixelRatio(window.devicePixelRatio);
             });
     
-            console.log("Scene, Camera, Renderer, OrbitControls, Player, and Dynamic Chunk Loading initialized.");
-            console.log("Player movement (WASD) and jump (Space) are enabled. Chunks load/unload as you move.");
+            console.log("Scene, Camera, Renderer, OrbitControls, Player, Dynamic Chunk Loading, and Noise-based Terrain initialized.");
+            console.log("Player movement (WASD) and jump (Space) are enabled. Chunks with noise terrain load/unload as you move.");
             // --- 以前のコード ここまで ---
     
         </script>
