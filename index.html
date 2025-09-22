@@ -47,7 +47,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
     
             // --- Step 9 で追加したコード: プレイヤー関連の定数 ---
             // プレイヤーの初期位置 (メートル単位)
-            const playerPosition = new THREE.Vector3(50, 10, -25); // 高さを少し上げて床から浮かせる
+            const playerPosition = new THREE.Vector3(50, 1, -25); // Yを1に修正 (プレイヤーの高さ2mの半分 + 床の高さ0)
             // プレイヤーの移動速度 (メートル/秒)
             const PLAYER_SPEED = 10.0;
             // ジャンプ力 (メートル/秒)
@@ -220,12 +220,12 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
                 }
     
                 // 9. 水平移動 (XZ平面)
-                // カメラのY軸回転（ヨー角）を取得
-                const playerDirection = controls.getObject().rotation.y;
+                // *** 修正箇所: カメラのY軸回転（ヨー角）を取得 ***
+                const playerDirection = camera.rotation.y; // <-- ここを修正
     
                 // 移動ベクトルを初期化
-                const moveX = 0;
-                const moveZ = 0;
+                let moveX = 0; // let に変更
+                let moveZ = 0; // let に変更
     
                 // 前後左右の入力に応じて移動ベクトルを計算
                 // Three.js では、Z軸の正が前方、X軸の正が右方です。
@@ -254,12 +254,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
                 // 10. カメラの注視点（ターゲット）をプレイヤーに追従させる
                 controls.target.copy(playerMesh.position);
     
-                // 11. カメラの位置もプレイヤーに相対的に維持（オプション、より滑らかにするには補間などが必要）
-                // ここでは、プレイヤーの後方・上方に固定の距離を保つようにします。
-                // 実際には、カメラの位置もプレイヤーの移動に応じてスムーズに更新する必要があります。
-                // ただし、OrbitControlsがアクティブな場合、マウス操作との競合が起こる可能性があります。
-                // 一時的に、OrbitControlsの一部機能を制限してみます。
-                // controls.update() は依然として必要
+                // 11. controls.update() は依然として必要
                 controls.update();
                 // --- Step 9 のコード ここまで ---
     
@@ -281,7 +276,6 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
             // --- 以前のコード ここまで ---
     
         </script>
-    
     
 </body>
 </html>
