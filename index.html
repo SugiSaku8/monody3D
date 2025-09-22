@@ -19,10 +19,9 @@
         }
         </script>
         <script type="module">
-            // Step 7: チャンク内への基本地形（床）の生成
             import * as THREE from 'three';
             import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-            // --- Step 4/6 のコード: チャンク関連の定数と関数 ---
+            // --- Step 4/6/7 のコード: チャンク関連の定数と関数 ---
             const CHUNK_SIZE = 32;
             const RENDER_DISTANCE = 2;
     
@@ -45,7 +44,8 @@
                 return chunksToLoad;
             }
     
-            const playerPosition = new THREE.Vector3(50, 10, -25);
+            const playerPosition = new THREE.Vector3(50, 10, -25); // プレイヤーの初期位置
+    
             const playerChunkX = worldToChunkCoord(playerPosition.x);
             const playerChunkY = worldToChunkCoord(playerPosition.y);
             const playerChunkZ = worldToChunkCoord(playerPosition.z);
@@ -55,10 +55,10 @@
     
             const visibleChunks = calculateVisibleChunks(playerChunkX, playerChunkY, playerChunkZ);
             console.log(`描画範囲内のチャンク数: ${visibleChunks.length}`);
-            // --- Step 4/6 のコード ここまで ---
+            // --- Step 4/6/7 のコード ここまで ---
     
     
-            // --- Step 5 のコード: チャンクの可視化関連関数 ---
+            // --- Step 5/7 のコード: チャンクの可視化・床生成関連関数 ---
             function chunkToWorldCenter(chunkCoord) {
                 return chunkCoord * CHUNK_SIZE + CHUNK_SIZE / 2;
             }
@@ -74,105 +74,117 @@
                 chunkWireframe.position.set(centerX, centerY, centerZ);
                 return chunkWireframe;
             }
-            // --- Step 5 のコード ここまで ---
     
-    
-            // --- Step 7 で追加したコード: チャンク内床の生成 ---
-            /**
-             * 指定されたチャンク座標に対応する床（平面）メッシュを作成する
-             * @param {number} cx - チャンクX座標
-             * @param {number} cy - チャンクY座標
-             * @param {number} cz - チャンクZ座標
-             * @returns {THREE.Mesh} 床のメッシュ
-             */
             function createChunkFloor(cx, cy, cz) {
-                // 1. 床用の平面ジオメトリを作成 (サイズはチャンクのXZ平面)
                 const floorGeometry = new THREE.PlaneGeometry(CHUNK_SIZE, CHUNK_SIZE);
-    
-                // 2. 床用のマテリアルを作成 (色をチャンク座標から生成してみる)
-                // RGB値をチャンク座標から算出 (0-255の範囲に収める)
-                // これにより、各チャンクが異なる色になる
                 const r = Math.abs(cx * 30) % 256;
                 const g = Math.abs(cy * 50) % 256;
                 const b = Math.abs(cz * 70) % 256;
                 const floorMaterial = new THREE.MeshBasicMaterial({
                     color: new THREE.Color(`rgb(${r}, ${g}, ${b})`),
-                    side: THREE.DoubleSide // 両面から見えるようにする（オプション）
+                    side: THREE.DoubleSide
                 });
-    
-                // 3. メッシュを作成
                 const floorMesh = new THREE.Mesh(floorGeometry, floorMaterial);
-    
-                // 4. 床の位置を設定
-                // X, Z はチャンクの中心
                 const centerX = chunkToWorldCenter(cx);
                 const centerZ = chunkToWorldCenter(cz);
-                // Y はチャンクの最下部 (チャンクのY範囲は cy*CHUNK_SIZE から (cy+1)*CHUNK_SIZE)
-                // 床を一番下に置くには、Y座標を cy * CHUNK_SIZE に設定する
                 const bottomY = cy * CHUNK_SIZE;
                 floorMesh.position.set(centerX, bottomY, centerZ);
-    
-                // 5. 床をX軸周りに-90度（またはMath.PI/2ラジアン）回転させて、XZ平面に配置
                 floorMesh.rotation.x = -Math.PI / 2;
-    
                 return floorMesh;
             }
-            // --- Step 7 のコード ここまで ---
+            // --- Step 5/7 のコード ここまで ---
     
     
             // --- 以前のコード（Step 1-3）---
             const scene = new THREE.Scene();
+            // カメラの初期位置は後でプレイヤーに合わせて設定するため、ここでは仮の値でも良い
             const camera = new THREE.PerspectiveCamera(
                 75,
                 window.innerWidth / window.innerHeight,
                 0.1,
                 1000
             );
-            camera.position.set(0, 0, 10); // カメラの初期位置を少し調整して、床が見えるようにする
     
             const renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(window.devicePixelRatio);
             document.body.appendChild(renderer.domElement);
     
-            const controls = new OrbitControls(camera, renderer.domElement);
+            // --- Step 8 で追加/変更したコード: プレイヤーとカメラ追従 ---
+            // 1. プレイヤーメッシュの作成
+            const playerGeometry = new THREE.BoxGeometry(1, 2, 1); // 幅1m, 高さ2m, 奥行き1m
+            const playerMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 }); // 赤色
+            const playerMesh = new THREE.Mesh(playerGeometry, playerMaterial);
+            // 2. プレイヤーの初期位置を設定
+            playerMesh.position.copy(playerPosition); // playerPosition ベクトルの値をコピー
+            scene.add(playerMesh); // シーンに追加
+            console.log("プレイヤーメッシュを追加しました。");
     
-            const geometry = new THREE.BoxGeometry(1, 1, 1);
-            const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-            const cube = new THREE.Mesh(geometry, material);
-            cube.position.z = -5;
-            scene.add(cube);
+            // 3. カメラ追従の設定 (OrbitControls を使用)
+            const controls = new OrbitControls(camera, renderer.domElement);
+            // カメラの注視点 (回転の中心) をプレイヤーに設定
+            controls.target.copy(playerPosition);
+            // カメラの初期位置をプレイヤーの後方・やや上方に設定
+            // プレイヤー位置 + (後方10m, 上方5m)
+            camera.position.set(
+                playerPosition.x,
+                playerPosition.y + 5, // 上方 5m
+                playerPosition.z + 10  // 後方 10m (Z軸の正の方向が後方と仮定)
+            );
+            // カメラがプレイヤーを真正面から見るようにする (オプション)
+            camera.lookAt(playerPosition);
+    
+            // (オプション) プレイヤーの位置に座標軸ヘルパーを追加して向きを確認
+            const axesHelper = new THREE.AxesHelper(5); // 軸の長さ5m
+            playerMesh.add(axesHelper); // プレイヤーメッシュの子要素として追加
+    
+            // (オプション) プレイヤー中心の回転のみに制限したい場合:
+            // controls.enablePan = false; // パン（平行移動）を無効化
+            // controls.enableZoom = false; // ズームを無効化
+            // --- Step 8 のコード ここまで ---
     
             // --- Step 6/7 で追加/変更したコード: 動的なチャンク表示と床の追加 ---
-            const chunkMeshes = []; // チャンクのワイヤーフレームと床を追跡
+            const chunkMeshes = [];
             visibleChunks.forEach(chunkCoord => {
                 const { cx, cy, cz } = chunkCoord;
                 let color = 0xffffff;
                 if (cx === playerChunkX && cy === playerChunkY && cz === playerChunkZ) {
                     color = 0xffff00;
                 }
-    
-                // チャンクのワイヤーフレームを作成・追加
                 const chunkWireframe = createChunkWireframe(cx, cy, cz, color);
                 scene.add(chunkWireframe);
-                chunkMeshes.push(chunkWireframe); // 配列に追加
+                chunkMeshes.push(chunkWireframe);
     
-                // --- Step 7 で追加したコード: 床の作成・追加 ---
-                // チャンクの床を作成・追加
                 const floorMesh = createChunkFloor(cx, cy, cz);
                 scene.add(floorMesh);
-                chunkMeshes.push(floorMesh); // 配列に追加
-                // --- Step 7 のコード ここまで ---
+                chunkMeshes.push(floorMesh);
             });
     
             console.log(`描画範囲内の ${visibleChunks.length} 個のチャンク（ワイヤーフレームと床）を表示しました。`);
             // --- Step 6/7 のコード ここまで ---
     
+            // --- 以前のコード（Step 1-3）---
+            // 緑のテストキューブは、プレイヤー視点では邪魔かもしれないので、コメントアウトまたは削除
+            /*
+            const geometry = new THREE.BoxGeometry(1, 1, 1);
+            const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+            const cube = new THREE.Mesh(geometry, material);
+            cube.position.z = -5;
+            scene.add(cube);
+            */
+    
             function animate() {
                 requestAnimationFrame(animate);
-                cube.rotation.x += 0.01;
-                cube.rotation.y += 0.01;
+    
+                // --- Step 8 で追加したコード: アニメーションループでのカメラ更新 ---
+                // controls.update() は OrbitControls の状態を更新するために必要
                 controls.update();
+                // --- Step 8 のコード ここまで ---
+    
+                // テストキューブの回転はコメントアウト
+                // cube.rotation.x += 0.01;
+                // cube.rotation.y += 0.01;
+    
                 renderer.render(scene, camera);
             }
     
@@ -185,10 +197,11 @@
                 renderer.setPixelRatio(window.devicePixelRatio);
             });
     
-            console.log("Scene, Camera, Renderer, OrbitControls, and basic chunk floors initialized.");
-            console.log("Try dragging the mouse to rotate the view and using the scroll wheel to zoom.");
+            console.log("Scene, Camera, Renderer, OrbitControls, Player, and chunk floors initialized.");
+            console.log("Camera is now following the player (red cube).");
             // --- 以前のコード ここまで ---
     
         </script>
+    
 </body>
 </html>
