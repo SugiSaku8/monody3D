@@ -19,9 +19,10 @@
         }
         </script>
         <script type="module">
+            // Step 9: プレイヤーの基本移動機能の実装 (WASD + ジャンプ)
             import * as THREE from 'three';
-            import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-            // --- Step 4/6/7 のコード: チャンク関連の定数と関数 ---
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+            // --- Step 4/6/7/8 のコード: チャンク関連の定数と関数 ---
             const CHUNK_SIZE = 32;
             const RENDER_DISTANCE = 2;
     
@@ -44,7 +45,16 @@
                 return chunksToLoad;
             }
     
-            const playerPosition = new THREE.Vector3(50, 10, -25); // プレイヤーの初期位置
+            // --- Step 9 で追加したコード: プレイヤー関連の定数 ---
+            // プレイヤーの初期位置 (メートル単位)
+            const playerPosition = new THREE.Vector3(50, 10, -25); // 高さを少し上げて床から浮かせる
+            // プレイヤーの移動速度 (メートル/秒)
+            const PLAYER_SPEED = 10.0;
+            // ジャンプ力 (メートル/秒)
+            const JUMP_FORCE = 8.0;
+            // 重力加速度 (メートル/秒^2)
+            const GRAVITY = 20.0;
+            // --- Step 9 のコード ここまで ---
     
             const playerChunkX = worldToChunkCoord(playerPosition.x);
             const playerChunkY = worldToChunkCoord(playerPosition.y);
@@ -55,10 +65,10 @@
     
             const visibleChunks = calculateVisibleChunks(playerChunkX, playerChunkY, playerChunkZ);
             console.log(`描画範囲内のチャンク数: ${visibleChunks.length}`);
-            // --- Step 4/6/7 のコード ここまで ---
+            // --- Step 4/6/7/8 のコード ここまで ---
     
     
-            // --- Step 5/7 のコード: チャンクの可視化・床生成関連関数 ---
+            // --- Step 5/7/8 のコード: チャンクの可視化・床生成・プレイヤー関連関数 ---
             function chunkToWorldCenter(chunkCoord) {
                 return chunkCoord * CHUNK_SIZE + CHUNK_SIZE / 2;
             }
@@ -92,12 +102,11 @@
                 floorMesh.rotation.x = -Math.PI / 2;
                 return floorMesh;
             }
-            // --- Step 5/7 のコード ここまで ---
+            // --- Step 5/7/8 のコード ここまで ---
     
     
             // --- 以前のコード（Step 1-3）---
             const scene = new THREE.Scene();
-            // カメラの初期位置は後でプレイヤーに合わせて設定するため、ここでは仮の値でも良い
             const camera = new THREE.PerspectiveCamera(
                 75,
                 window.innerWidth / window.innerHeight,
@@ -109,39 +118,54 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(window.devicePixelRatio);
             document.body.appendChild(renderer.domElement);
+            // --- 以前のコード ここまで ---
+    
     
             // --- Step 8 で追加/変更したコード: プレイヤーとカメラ追従 ---
-            // 1. プレイヤーメッシュの作成
-            const playerGeometry = new THREE.BoxGeometry(1, 2, 1); // 幅1m, 高さ2m, 奥行き1m
-            const playerMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 }); // 赤色
+            const playerGeometry = new THREE.BoxGeometry(1, 2, 1);
+            const playerMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
             const playerMesh = new THREE.Mesh(playerGeometry, playerMaterial);
-            // 2. プレイヤーの初期位置を設定
-            playerMesh.position.copy(playerPosition); // playerPosition ベクトルの値をコピー
-            scene.add(playerMesh); // シーンに追加
+            playerMesh.position.copy(playerPosition);
+            scene.add(playerMesh);
             console.log("プレイヤーメッシュを追加しました。");
     
-            // 3. カメラ追従の設定 (OrbitControls を使用)
             const controls = new OrbitControls(camera, renderer.domElement);
-            // カメラの注視点 (回転の中心) をプレイヤーに設定
             controls.target.copy(playerPosition);
-            // カメラの初期位置をプレイヤーの後方・やや上方に設定
-            // プレイヤー位置 + (後方10m, 上方5m)
             camera.position.set(
                 playerPosition.x,
-                playerPosition.y + 5, // 上方 5m
-                playerPosition.z + 10  // 後方 10m (Z軸の正の方向が後方と仮定)
+                playerPosition.y + 5,
+                playerPosition.z + 10
             );
-            // カメラがプレイヤーを真正面から見るようにする (オプション)
             camera.lookAt(playerPosition);
     
-            // (オプション) プレイヤーの位置に座標軸ヘルパーを追加して向きを確認
-            const axesHelper = new THREE.AxesHelper(5); // 軸の長さ5m
-            playerMesh.add(axesHelper); // プレイヤーメッシュの子要素として追加
-    
-            // (オプション) プレイヤー中心の回転のみに制限したい場合:
-            // controls.enablePan = false; // パン（平行移動）を無効化
-            // controls.enableZoom = false; // ズームを無効化
+            // (オプション) プレイヤーの位置に座標軸ヘルパーを追加
+            const axesHelper = new THREE.AxesHelper(5);
+            playerMesh.add(axesHelper);
             // --- Step 8 のコード ここまで ---
+    
+    
+            // --- Step 9 で追加したコード: キーボード入力と移動処理 ---
+            // 1. キーの状態を管理するオブジェクト
+            const keyState = {};
+    
+            // 2. キーボードイベントリスナーの設定
+            window.addEventListener('keydown', (event) => {
+                keyState[event.code] = true; // 押されたキーの状態を true に
+            });
+    
+            window.addEventListener('keyup', (event) => {
+                keyState[event.code] = false; // 離されたキーの状態を false に
+            });
+    
+            // 3. 物理量の初期化
+            let velocityY = 0; // Y軸方向の速度
+            let isOnGround = true; // 地面にいるかどうかのフラグ
+    
+            // 4. デルタタイム計測用のクロック
+            const clock = new THREE.Clock();
+    
+            // --- Step 9 のコード ここまで ---
+    
     
             // --- Step 6/7 で追加/変更したコード: 動的なチャンク表示と床の追加 ---
             const chunkMeshes = [];
@@ -163,32 +187,87 @@
             console.log(`描画範囲内の ${visibleChunks.length} 個のチャンク（ワイヤーフレームと床）を表示しました。`);
             // --- Step 6/7 のコード ここまで ---
     
-            // --- 以前のコード（Step 1-3）---
-            // 緑のテストキューブは、プレイヤー視点では邪魔かもしれないので、コメントアウトまたは削除
-            /*
-            const geometry = new THREE.BoxGeometry(1, 1, 1);
-            const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-            const cube = new THREE.Mesh(geometry, material);
-            cube.position.z = -5;
-            scene.add(cube);
-            */
     
+            // --- 以前のコード（Step 1-3）---
             function animate() {
                 requestAnimationFrame(animate);
     
-                // --- Step 8 で追加したコード: アニメーションループでのカメラ更新 ---
-                // controls.update() は OrbitControls の状態を更新するために必要
-                controls.update();
-                // --- Step 8 のコード ここまで ---
+                // --- Step 9 で追加したコード: アニメーションループでの移動と物理処理 ---
+                // デルタタイム（秒単位）を取得
+                const delta = clock.getDelta();
     
-                // テストキューブの回転はコメントアウト
-                // cube.rotation.x += 0.01;
-                // cube.rotation.y += 0.01;
+                // 5. ジャンプ処理
+                if (keyState['Space'] && isOnGround) {
+                    velocityY = JUMP_FORCE; // ジャンプ力分の上昇速度を設定
+                    isOnGround = false; // 空中にいる状態に
+                    console.log("Jump!");
+                }
+    
+                // 6. 重力適用
+                velocityY -= GRAVITY * delta; // 速度に重力を加算
+    
+                // 7. Y軸（上下）の移動
+                playerMesh.position.y += velocityY * delta; // 速度を使って位置を更新
+    
+                // 8. 着地判定と位置修正 (簡易版: Y <= 床の高さ)
+                // 本来は、プレイヤーがいるチャンクの床の高さを正確に計算するべきですが、
+                // ここでは playerChunkY * CHUNK_SIZE で近似します。
+                const floorHeight = playerChunkY * CHUNK_SIZE;
+                if (playerMesh.position.y <= floorHeight + 1) { // +1 はプレイヤーの高さの半分(2/2)を考慮
+                    playerMesh.position.y = floorHeight + 1; // 床の上に立たせる
+                    velocityY = 0; // Y軸速度をリセット
+                    isOnGround = true; // 地面にいる状態に
+                }
+    
+                // 9. 水平移動 (XZ平面)
+                // カメラのY軸回転（ヨー角）を取得
+                const playerDirection = controls.getObject().rotation.y;
+    
+                // 移動ベクトルを初期化
+                const moveX = 0;
+                const moveZ = 0;
+    
+                // 前後左右の入力に応じて移動ベクトルを計算
+                // Three.js では、Z軸の正が前方、X軸の正が右方です。
+                // ただし、カメラの回転を考慮する必要があります。
+                if (keyState['KeyW']) { // 前 (Forward)
+                    moveX -= Math.sin(playerDirection) * PLAYER_SPEED * delta;
+                    moveZ -= Math.cos(playerDirection) * PLAYER_SPEED * delta;
+                }
+                if (keyState['KeyS']) { // 後 (Backward)
+                    moveX += Math.sin(playerDirection) * PLAYER_SPEED * delta;
+                    moveZ += Math.cos(playerDirection) * PLAYER_SPEED * delta;
+                }
+                if (keyState['KeyA']) { // 左 (Left)
+                    moveX -= Math.cos(playerDirection) * PLAYER_SPEED * delta;
+                    moveZ += Math.sin(playerDirection) * PLAYER_SPEED * delta;
+                }
+                if (keyState['KeyD']) { // 右 (Right)
+                    moveX += Math.cos(playerDirection) * PLAYER_SPEED * delta;
+                    moveZ -= Math.sin(playerDirection) * PLAYER_SPEED * delta;
+                }
+    
+                // 計算した移動量をプレイヤーの位置に加算
+                playerMesh.position.x += moveX;
+                playerMesh.position.z += moveZ;
+    
+                // 10. カメラの注視点（ターゲット）をプレイヤーに追従させる
+                controls.target.copy(playerMesh.position);
+    
+                // 11. カメラの位置もプレイヤーに相対的に維持（オプション、より滑らかにするには補間などが必要）
+                // ここでは、プレイヤーの後方・上方に固定の距離を保つようにします。
+                // 実際には、カメラの位置もプレイヤーの移動に応じてスムーズに更新する必要があります。
+                // ただし、OrbitControlsがアクティブな場合、マウス操作との競合が起こる可能性があります。
+                // 一時的に、OrbitControlsの一部機能を制限してみます。
+                // controls.update() は依然として必要
+                controls.update();
+                // --- Step 9 のコード ここまで ---
     
                 renderer.render(scene, camera);
             }
     
             animate();
+            // --- 以前のコード ここまで ---
     
             window.addEventListener('resize', () => {
                 camera.aspect = window.innerWidth / window.innerHeight;
@@ -198,10 +277,11 @@
             });
     
             console.log("Scene, Camera, Renderer, OrbitControls, Player, and chunk floors initialized.");
-            console.log("Camera is now following the player (red cube).");
+            console.log("Player movement (WASD) and jump (Space) are now enabled.");
             // --- 以前のコード ここまで ---
     
         </script>
+    
     
 </body>
 </html>
