@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D無限生成ゲーム</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.168.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.168.0/examples/jsm/"
+            }
+        }
+        </script>
+        <script type="module">
+            // Step 7: チャンク内への基本地形（床）の生成
+            import * as THREE from 'three';
+            import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+            // --- Step 4/6 のコード: チャンク関連の定数と関数 ---
+            const CHUNK_SIZE = 32;
+            const RENDER_DISTANCE = 2;
+    
+            function worldToChunkCoord(worldCoord) {
+                return Math.floor(worldCoord / CHUNK_SIZE);
+            }
+    
+            function calculateVisibleChunks(playerChunkX, playerChunkY, playerChunkZ) {
+                const chunksToLoad = [];
+                for (let dx = -RENDER_DISTANCE; dx <= RENDER_DISTANCE; dx++) {
+                    for (let dy = -RENDER_DISTANCE; dy <= RENDER_DISTANCE; dy++) {
+                        for (let dz = -RENDER_DISTANCE; dz <= RENDER_DISTANCE; dz++) {
+                            const cx = playerChunkX + dx;
+                            const cy = playerChunkY + dy;
+                            const cz = playerChunkZ + dz;
+                            chunksToLoad.push({ cx, cy, cz });
+                        }
+                    }
+                }
+                return chunksToLoad;
+            }
+    
+            const playerPosition = new THREE.Vector3(50, 10, -25);
+            const playerChunkX = worldToChunkCoord(playerPosition.x);
+            const playerChunkY = worldToChunkCoord(playerPosition.y);
+            const playerChunkZ = worldToChunkCoord(playerPosition.z);
+    
+            console.log(`プレイヤーの位置: (${playerPosition.x}, ${playerPosition.y}, ${playerPosition.z}) m`);
+            console.log(`プレイヤーの所属チャンク: (${playerChunkX}, ${playerChunkY}, ${playerChunkZ})`);
+    
+            const visibleChunks = calculateVisibleChunks(playerChunkX, playerChunkY, playerChunkZ);
+            console.log(`描画範囲内のチャンク数: ${visibleChunks.length}`);
+            // --- Step 4/6 のコード ここまで ---
+    
+    
+            // --- Step 5 のコード: チャンクの可視化関連関数 ---
+            function chunkToWorldCenter(chunkCoord) {
+                return chunkCoord * CHUNK_SIZE + CHUNK_SIZE / 2;
+            }
+    
+            function createChunkWireframe(cx, cy, cz, color = 0xffffff) {
+                const chunkGeometry = new THREE.BoxGeometry(CHUNK_SIZE, CHUNK_SIZE, CHUNK_SIZE);
+                const edgesGeometry = new THREE.EdgesGeometry(chunkGeometry);
+                const lineMaterial = new THREE.LineBasicMaterial({ color: color, linewidth: 1 });
+                const chunkWireframe = new THREE.LineSegments(edgesGeometry, lineMaterial);
+                const centerX = chunkToWorldCenter(cx);
+                const centerY = chunkToWorldCenter(cy);
+                const centerZ = chunkToWorldCenter(cz);
+                chunkWireframe.position.set(centerX, centerY, centerZ);
+                return chunkWireframe;
+            }
+            // --- Step 5 のコード ここまで ---
+    
+    
+            // --- Step 7 で追加したコード: チャンク内床の生成 ---
+            /**
+             * 指定されたチャンク座標に対応する床（平面）メッシュを作成する
+             * @param {number} cx - チャンクX座標
+             * @param {number} cy - チャンクY座標
+             * @param {number} cz - チャンクZ座標
+             * @returns {THREE.Mesh} 床のメッシュ
+             */
+            function createChunkFloor(cx, cy, cz) {
+                // 1. 床用の平面ジオメトリを作成 (サイズはチャンクのXZ平面)
+                const floorGeometry = new THREE.PlaneGeometry(CHUNK_SIZE, CHUNK_SIZE);
+    
+                // 2. 床用のマテリアルを作成 (色をチャンク座標から生成してみる)
+                // RGB値をチャンク座標から算出 (0-255の範囲に収める)
+                // これにより、各チャンクが異なる色になる
+                const r = Math.abs(cx * 30) % 256;
+                const g = Math.abs(cy * 50) % 256;
+                const b = Math.abs(cz * 70) % 256;
+                const floorMaterial = new THREE.MeshBasicMaterial({
+                    color: new THREE.Color(`rgb(${r}, ${g}, ${b})`),
+                    side: THREE.DoubleSide // 両面から見えるようにする（オプション）
+                });
+    
+                // 3. メッシュを作成
+                const floorMesh = new THREE.Mesh(floorGeometry, floorMaterial);
+    
+                // 4. 床の位置を設定
+                // X, Z はチャンクの中心
+                const centerX = chunkToWorldCenter(cx);
+                const centerZ = chunkToWorldCenter(cz);
+                // Y はチャンクの最下部 (チャンクのY範囲は cy*CHUNK_SIZE から (cy+1)*CHUNK_SIZE)
+                // 床を一番下に置くには、Y座標を cy * CHUNK_SIZE に設定する
+                const bottomY = cy * CHUNK_SIZE;
+                floorMesh.position.set(centerX, bottomY, centerZ);
+    
+                // 5. 床をX軸周りに-90度（またはMath.PI/2ラジアン）回転させて、XZ平面に配置
+                floorMesh.rotation.x = -Math.PI / 2;
+    
+                return floorMesh;
+            }
+            // --- Step 7 のコード ここまで ---
+    
+    
+            // --- 以前のコード（Step 1-3）---
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(
+                75,
+                window.innerWidth / window.innerHeight,
+                0.1,
+                1000
+            );
+            camera.position.set(0, 0, 10); // カメラの初期位置を少し調整して、床が見えるようにする
+    
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            document.body.appendChild(renderer.domElement);
+    
+            const controls = new OrbitControls(camera, renderer.domElement);
+    
+            const geometry = new THREE.BoxGeometry(1, 1, 1);
+            const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+            const cube = new THREE.Mesh(geometry, material);
+            cube.position.z = -5;
+            scene.add(cube);
+    
+            // --- Step 6/7 で追加/変更したコード: 動的なチャンク表示と床の追加 ---
+            const chunkMeshes = []; // チャンクのワイヤーフレームと床を追跡
+            visibleChunks.forEach(chunkCoord => {
+                const { cx, cy, cz } = chunkCoord;
+                let color = 0xffffff;
+                if (cx === playerChunkX && cy === playerChunkY && cz === playerChunkZ) {
+                    color = 0xffff00;
+                }
+    
+                // チャンクのワイヤーフレームを作成・追加
+                const chunkWireframe = createChunkWireframe(cx, cy, cz, color);
+                scene.add(chunkWireframe);
+                chunkMeshes.push(chunkWireframe); // 配列に追加
+    
+                // --- Step 7 で追加したコード: 床の作成・追加 ---
+                // チャンクの床を作成・追加
+                const floorMesh = createChunkFloor(cx, cy, cz);
+                scene.add(floorMesh);
+                chunkMeshes.push(floorMesh); // 配列に追加
+                // --- Step 7 のコード ここまで ---
+            });
+    
+            console.log(`描画範囲内の ${visibleChunks.length} 個のチャンク（ワイヤーフレームと床）を表示しました。`);
+            // --- Step 6/7 のコード ここまで ---
+    
+            function animate() {
+                requestAnimationFrame(animate);
+                cube.rotation.x += 0.01;
+                cube.rotation.y += 0.01;
+                controls.update();
+                renderer.render(scene, camera);
+            }
+    
+            animate();
+    
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.setPixelRatio(window.devicePixelRatio);
+            });
+    
+            console.log("Scene, Camera, Renderer, OrbitControls, and basic chunk floors initialized.");
+            console.log("Try dragging the mouse to rotate the view and using the scroll wheel to zoom.");
+            // --- 以前のコード ここまで ---
+    
+        </script>
+</body>
+</html>
