@@ -5,19 +5,43 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>3D無限生成ゲーム</title>
     <style>
-        body { margin: 0; overflow: hidden; }
+        body { margin: 0; overflow: hidden; font-family: sans-serif; }
         canvas { display: block; }
         #canvasWrapper {
             width: 100vw;
             height: 100vh;
             cursor: none;
         }
+        /* --- Step 18 で追加したコード: UIのスタイル --- */
+        #ui {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+            pointer-events: none; /* UIがマウスイベントを妨げないように */
+        }
+        #message {
+            margin-top: 5px;
+            color: #ffff00; /* メッセージは黄色で表示 */
+        }
+        /* --- Step 18 のコード ここまで --- */
     </style>
 </head>
 <body>
     <div id="canvasWrapper">
         <canvas id="gameCanvas"></canvas>
     </div>
+    <!-- --- Step 18 で追加したコード: UI要素 --- -->
+    <div id="ui">
+        <div>位置: <span id="playerPos">0, 0, 0</span></div>
+        <div>チャンク: <span id="playerChunk">0, 0, 0</span></div>
+        <div id="message"></div>
+    </div>
+    <!-- --- Step 18 のコード ここまで --- -->
     <script type="importmap">
         {
             "imports": {
@@ -58,6 +82,10 @@
 
         const playerPosition = new THREE.Vector3(50, 1, -25);
         const PLAYER_SPEED = 10.0;
+        // --- Step 18 で変更したコード: ジャンプ関連定数を復活 ---
+        const JUMP_FORCE = 8.0;
+        const GRAVITY = 20.0;
+        // --- Step 18 のコード ここまで ---
 
         const scene = new THREE.Scene();
         let playerChunkX = worldToChunkCoord(playerPosition.x);
@@ -69,9 +97,7 @@
 
         const loadedChunks = new Map();
         const loadedChests = [];
-        // --- Step 17 で追加したコード: ロードされたトロールを管理する配列 ---
-        const loadedTrolls = []; // トロールメッシュを直接格納する配列
-        // --- Step 17 のコード ここまで ---
+        const loadedTrolls = [];
 
         function getChunkKey(chunkCoord) {
              return `${chunkCoord.cx},${chunkCoord.cy},${chunkCoord.cz}`;
@@ -183,69 +209,137 @@
             loadedChests.push(chest);
         }
 
-        // --- Step 17 で追加したコード: トロールの作成 ---
-        /**
-         * 簡単なトロールメッシュを生成する
-         * @returns {THREE.Mesh} トロールメッシュ
-         */
         function createTroll() {
-            // トロールのジオメトリ (球体)
-            const trollGeometry = new THREE.SphereGeometry(0.8, 16, 16); // 半径, 幅セグメント, 高さセグメント
-            // トロールのマテリアル (緑)
+            const trollGeometry = new THREE.SphereGeometry(0.8, 16, 16);
             const trollMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
-            // メッシュ作成
             const trollMesh = new THREE.Mesh(trollGeometry, trollMaterial);
-            // シャドウ設定
             trollMesh.castShadow = true;
             trollMesh.receiveShadow = true;
-            // 初期状態の色を保存 (反応用)
             trollMesh.userData = { originalColor: new THREE.Color(0x00ff00) };
             return trollMesh;
         }
-        // --- Step 17 のコード ここまで ---
 
-        // --- Step 17 で追加したコード: チャンク内にトロールを配置 ---
-        /**
-         * 指定されたチャンク内にトロールをランダムに配置する
-         * @param {THREE.Group} chunkGroup - チャンクのグループ
-         * @param {number} cx - チャンクX座標
-         * @param {number} cz - チャンクZ座標
-         */
         function placeTrollsInChunk(chunkGroup, cx, cz) {
-            // 1. トロールを配置するかどうかをランダムに決定 (例: 20%の確率で配置)
             if (Math.random() > 0.2) {
-                return; // 80%の確率で配置しない
+                return;
             }
 
-            // 2. チャンク内でのランダムなローカルXZ座標を決定
             const localX = Math.random() * CHUNK_SIZE;
             const localZ = Math.random() * CHUNK_SIZE;
-
-            // 3. ローカル座標をワールド座標に変換
             const worldX = cx * CHUNK_SIZE + localX;
             const worldZ = cz * CHUNK_SIZE + localZ;
-
-            // 4. その地点の地形の高さを取得
             const terrainHeight = getTerrainHeightAt(worldX, worldZ);
 
-            // 5. トロールメッシュを作成
             const troll = createTroll();
 
-            // 6. トロールの位置を設定 (ローカル座標系でチャンクグループ内に配置)
             const halfChunkSize = CHUNK_SIZE / 2;
             troll.position.set(
                 localX - halfChunkSize,
-                terrainHeight + 0.8, // 球体の半径(0.8)を足して地面に立たせる
+                terrainHeight + 0.8,
                 localZ - halfChunkSize
             );
 
-            // 7. チャンクグループに追加
             chunkGroup.add(troll);
-
-            // 8. ロードされたトロールリストに追加
             loadedTrolls.push(troll);
         }
-        // --- Step 17 のコード ここまで ---
+
+        // --- Step 18 で変更したコード: 木の生成調整 ---
+        function placeTreesInChunk(chunkGroup, cx, cz) {
+            // 1. 木の本数を減らす (例: 最大10本)
+            const numTrees = Math.floor(Math.random() * 10) + 1; // 1 から 10本
+
+            const halfChunkSize = CHUNK_SIZE / 2;
+            const minDistance = 4.0; // 木と木の最小間隔
+            const maxAttempts = 10; // 配置試行回数の上限
+
+            const placedTrees = []; // このチャンク内に配置された木の位置を記録
+
+            for (let i = 0; i < numTrees; i++) {
+                let placed = false;
+                let attempts = 0;
+
+                while (!placed && attempts < maxAttempts) {
+                    attempts++;
+                    // 2. チャンク内でのランダムなローカルXZ座標を決定
+                    //    端っこに置かれないように少し余白を設ける
+                    const margin = 2.0;
+                    const localX = margin + Math.random() * (CHUNK_SIZE - 2 * margin);
+                    const localZ = margin + Math.random() * (CHUNK_SIZE - 2 * margin);
+                    const worldX = cx * CHUNK_SIZE + localX;
+                    const worldZ = cz * CHUNK_SIZE + localZ;
+
+                    // 3. 最小間隔を満たしているかチェック
+                    let tooClose = false;
+                    for (const otherTreePos of placedTrees) {
+                        const dx = worldX - otherTreePos.x;
+                        const dz = worldZ - otherTreePos.z;
+                        const distanceSq = dx * dx + dz * dz;
+                        if (distanceSq < minDistance * minDistance) {
+                            tooClose = true;
+                            break;
+                        }
+                    }
+
+                    if (!tooClose) {
+                        // 4. 間隔が確保できたので配置
+                        const terrainHeight = getTerrainHeightAt(worldX, worldZ);
+                        const tree = createTree();
+                        tree.position.set(
+                            localX - halfChunkSize,
+                            terrainHeight,
+                            localZ - halfChunkSize
+                        );
+                        chunkGroup.add(tree);
+                        // 配置した位置を記録
+                        placedTrees.push({ x: worldX, z: worldZ });
+                        placed = true;
+                    }
+                }
+                // 試行回数を使い果たしても配置できなかった場合はスキップ
+                if (!placed) {
+                    console.warn(`チャンク (${cx}, ${cz}) への木の配置に失敗しました (試行回数オーバー)`);
+                }
+            }
+        }
+
+        function createTree() {
+            const treeGroup = new THREE.Group();
+
+            // パラメータのランダム化 (少し調整)
+            const trunkHeight = 1.5 + Math.random() * 3.5; // 1.5m から 5m
+            const trunkTopRadius = 0.08 + Math.random() * 0.25; // 0.08 から 0.33m
+            const trunkBottomRadius = trunkTopRadius + 0.05 + Math.random() * 0.15; // 下部は少し太く
+            const leavesRadius = 0.8 + Math.random() * 1.7; // 0.8 から 2.5m
+
+            const leafHue = 0.3 + Math.random() * 0.1;
+            const leafSaturation = 0.5 + Math.random() * 0.5;
+            const leafLightness = 0.2 + Math.random() * 0.3;
+            const leafColor = new THREE.Color(`hsl(${leafHue * 360}, ${leafSaturation * 100}%, ${leafLightness * 100}%)`);
+
+            const trunkHue = 0.1;
+            const trunkSaturation = 0.3 + Math.random() * 0.3;
+            const trunkLightness = 0.1 + Math.random() * 0.2;
+            const trunkColor = new THREE.Color(`hsl(${trunkHue * 360}, ${trunkSaturation * 100}%, ${trunkLightness * 100}%)`);
+
+            const trunkGeometry = new THREE.CylinderGeometry(trunkTopRadius, trunkBottomRadius, trunkHeight, 8);
+            const trunkMaterial = new THREE.MeshStandardMaterial({ color: trunkColor });
+            const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+            trunk.position.y = trunkHeight / 2;
+            trunk.castShadow = true;
+            trunk.receiveShadow = true;
+            treeGroup.add(trunk);
+
+            const leavesGeometry = new THREE.SphereGeometry(leavesRadius, 8, 8);
+            const leavesMaterial = new THREE.MeshStandardMaterial({ color: leafColor });
+            const leaves = new THREE.Mesh(leavesGeometry, leavesMaterial);
+            leaves.position.y = trunkHeight + leavesRadius * 0.7;
+            leaves.castShadow = true;
+            leaves.receiveShadow = true;
+            treeGroup.add(leaves);
+
+            return treeGroup;
+        }
+        // --- Step 18 のコード ここまで ---
 
         function loadChunk(chunkCoord) {
             const key = getChunkKey(chunkCoord);
@@ -269,9 +363,7 @@
 
             placeTreesInChunk(chunkGroup, chunkCoord.cx, chunkCoord.cz);
             placeChestsInChunk(chunkGroup, chunkCoord.cx, chunkCoord.cz);
-            // --- Step 17 で追加したコード: トロールの配置呼び出し ---
             placeTrollsInChunk(chunkGroup, chunkCoord.cx, chunkCoord.cz);
-            // --- Step 17 のコード ここまで ---
 
             scene.add(chunkGroup);
 
@@ -284,18 +376,15 @@
                 return;
             }
 
-            // チャンクグループ内のチェストを loadedChests から削除
             chunkData.group.traverse((child) => {
                 const chestIndex = loadedChests.indexOf(child);
                 if (chestIndex !== -1) {
                     loadedChests.splice(chestIndex, 1);
                 }
-                // --- Step 17 で追加したコード: トロールの削除 ---
                 const trollIndex = loadedTrolls.indexOf(child);
                 if (trollIndex !== -1) {
                     loadedTrolls.splice(trollIndex, 1);
                 }
-                // --- Step 17 のコード ここまで ---
             });
 
             scene.remove(chunkData.group);
@@ -332,65 +421,6 @@
             const centerZ = chunkToWorldCenter(cz);
             chunkWireframe.position.set(centerX, centerY, centerZ);
             return chunkWireframe;
-        }
-
-        function createTree() {
-            const treeGroup = new THREE.Group();
-
-            const trunkHeight = 2 + Math.random() * 4;
-            const trunkTopRadius = 0.1 + Math.random() * 0.3;
-            const trunkBottomRadius = trunkTopRadius + 0.05 + Math.random() * 0.2;
-            const leavesRadius = 1.0 + Math.random() * 2.0;
-
-            const leafHue = 0.3 + Math.random() * 0.1;
-            const leafSaturation = 0.5 + Math.random() * 0.5;
-            const leafLightness = 0.2 + Math.random() * 0.3;
-            const leafColor = new THREE.Color(`hsl(${leafHue * 360}, ${leafSaturation * 100}%, ${leafLightness * 100}%)`);
-
-            const trunkHue = 0.1;
-            const trunkSaturation = 0.3 + Math.random() * 0.3;
-            const trunkLightness = 0.1 + Math.random() * 0.2;
-            const trunkColor = new THREE.Color(`hsl(${trunkHue * 360}, ${trunkSaturation * 100}%, ${trunkLightness * 100}%)`);
-
-            const trunkGeometry = new THREE.CylinderGeometry(trunkTopRadius, trunkBottomRadius, trunkHeight, 8);
-            const trunkMaterial = new THREE.MeshStandardMaterial({ color: trunkColor });
-            const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
-            trunk.position.y = trunkHeight / 2;
-            trunk.castShadow = true;
-            trunk.receiveShadow = true;
-            treeGroup.add(trunk);
-
-            const leavesGeometry = new THREE.SphereGeometry(leavesRadius, 8, 8);
-            const leavesMaterial = new THREE.MeshStandardMaterial({ color: leafColor });
-            const leaves = new THREE.Mesh(leavesGeometry, leavesMaterial);
-            leaves.position.y = trunkHeight + leavesRadius * 0.7;
-            leaves.castShadow = true;
-            leaves.receiveShadow = true;
-            treeGroup.add(leaves);
-
-            return treeGroup;
-        }
-
-        function placeTreesInChunk(chunkGroup, cx, cz) {
-            const numTrees = Math.floor(Math.random() * 20) + 5;
-
-            const halfChunkSize = CHUNK_SIZE / 2;
-
-            for (let i = 0; i < numTrees; i++) {
-                const localX = Math.random() * CHUNK_SIZE;
-                const localZ = Math.random() * CHUNK_SIZE;
-                const worldX = cx * CHUNK_SIZE + localX;
-                const worldZ = cz * CHUNK_SIZE + localZ;
-                const terrainHeight = getTerrainHeightAt(worldX, worldZ);
-
-                const tree = createTree();
-                tree.position.set(
-                    localX - halfChunkSize,
-                    terrainHeight,
-                    localZ - halfChunkSize
-                );
-                chunkGroup.add(tree);
-            }
         }
 
         let isFirstPersonView = true;
@@ -484,7 +514,12 @@
         const axesHelper = new THREE.AxesHelper(5);
         playerMesh.add(axesHelper);
 
+        // --- Step 18 で変更したコード: キー入力処理と物理量の復活 ---
         const keyState = {};
+        // --- Step 18 で追加したコード: 物理量 ---
+        let velocityY = 0; // Y軸方向の速度
+        let isOnGround = true; // 地面にいるかどうかのフラグ
+        // --- Step 18 のコード ここまで ---
         window.addEventListener('keydown', (event) => {
             keyState[event.code] = true;
 
@@ -494,19 +529,33 @@
             if (event.code === 'KeyE') {
                 interact();
             }
+            // --- Step 18 で追加したコード: ジャンプ処理 ---
+            if (event.code === 'Space' && isOnGround) {
+                 velocityY = JUMP_FORCE; // ジャンプ力分の上昇速度を設定
+                 isOnGround = false; // 空中にいる状態に
+                 console.log("Jump!");
+            }
+            // --- Step 18 のコード ここま
         });
         window.addEventListener('keyup', (event) => {
             keyState[event.code] = false;
         });
+        // --- Step 18 のコード ここまで ---
 
         const clock = new THREE.Clock();
 
-        // --- Step 16 で追加したコード: インタラクト処理 ---
+        // --- Step 18 で追加したコード: UI要素の取得 ---
+        const playerPosElement = document.getElementById('playerPos');
+        const playerChunkElement = document.getElementById('playerChunk');
+        const messageElement = document.getElementById('message');
+        let messageTimeout = null; // メッセージクリア用タイマー
+        // --- Step 18 のコード ここまで ---
+
         function interact() {
             const INTERACT_DISTANCE = 3.0;
 
             let closestChest = null;
-            let closestTroll = null; // --- Step 17 で追加 ---
+            let closestTroll = null;
             let closestDistanceSq = Infinity;
 
             for (const chest of loadedChests) {
@@ -516,30 +565,41 @@
                     closestChest = chest;
                 }
             }
-            // --- Step 17 で追加したコード: トロールとの距離計算 ---
+
             for (const troll of loadedTrolls) {
                 const distanceSq = playerMesh.position.distanceToSquared(troll.position);
                 if (distanceSq < closestDistanceSq) {
                     closestDistanceSq = distanceSq;
-                    // closestChest は null になる可能性があるが、
-                    // トロールの方が近ければ上書きされる
-                    closestChest = null; // チェストの候補をクリア
-                    closestTroll = troll; // トロールを候補に設定
+                    closestChest = null;
+                    closestTroll = troll;
                 }
             }
-            // --- Step 17 のコード ここまで ---
 
-            // --- Step 17 で変更したコード: インタラクト対象の判定 ---
             if (closestChest && closestDistanceSq <= INTERACT_DISTANCE * INTERACT_DISTANCE) {
-                console.log("チェストを開けました！中身は青りんごです。");
+                // --- Step 18 で変更したコード: UIメッセージ表示 ---
+                showMessage("チェストを開けました！中身は青りんごです。");
+                // --- Step 18 のコード ここまで ---
             } else if (closestTroll && closestDistanceSq <= INTERACT_DISTANCE * INTERACT_DISTANCE) {
-                console.log("トロールに話しかけました。「こんにちは、冒険者よ！何か用かい？」");
-            } else {
-                // console.log("インタラクト可能なオブジェクトが近くにありません。");
+                // --- Step 18 で変更したコード: UIメッセージ表示 ---
+                showMessage("トロールに話しかけました。「こんにちは、冒険者よ！何か用かい？」");
+                // --- Step 18 のコード ここま
             }
-            // --- Step 17 のコード ここまで ---
         }
-        // --- Step 16/17 のコード ここまで ---
+
+        // --- Step 18 で追加したコード: UIメッセージ表示関数 ---
+        function showMessage(text) {
+            messageElement.textContent = text;
+            // 既存のタイマーがあればクリア
+            if (messageTimeout) {
+                clearTimeout(messageTimeout);
+            }
+            // 3秒後にメッセージをクリアするタイマーを設定
+            messageTimeout = setTimeout(() => {
+                messageElement.textContent = '';
+                messageTimeout = null;
+            }, 3000);
+        }
+        // --- Step 18 のコード ここまで ---
 
         function animate() {
             requestAnimationFrame(animate);
@@ -571,11 +631,21 @@
             playerMesh.position.x += moveX;
             playerMesh.position.z += moveZ;
 
-            const terrainHeight = getTerrainHeightAt(playerMesh.position.x, playerMesh.position.z);
-            playerMesh.position.y = terrainHeight + 1;
+            // --- Step 18 で変更したコード: ジャンプと重力処理 ---
+            // 1. ジャンプ力と重力を適用
+            velocityY -= GRAVITY * delta; // 速度に重力を加算
+            playerMesh.position.y += velocityY * delta; // 速度を使って位置を更新
 
-            // --- Step 17 で追加したコード: トロールの反応処理 ---
-            // NPC反応距離
+            // 2. 着地判定と位置修正
+            const terrainHeight = getTerrainHeightAt(playerMesh.position.x, playerMesh.position.z);
+            // プレイヤーの足元 (中心Y - 高さ/2 = 1 - 1 = 0) が地形の高さ以上になったら着地
+            if (playerMesh.position.y <= terrainHeight + 1.0) { // +1.0 はプレイヤーの中心から足元まで
+                playerMesh.position.y = terrainHeight + 1.0; // 地面の上に立たせる
+                velocityY = 0; // Y軸速度をリセット
+                isOnGround = true; // 地面にいる状態に
+            }
+            // --- Step 18 のコード ここまで ---
+
             const NPC_REACTION_DISTANCE = 5.0;
             const NPC_REACTION_DISTANCE_SQ = NPC_REACTION_DISTANCE * NPC_REACTION_DISTANCE;
 
@@ -584,19 +654,22 @@
                 const trollMaterial = troll.material;
 
                 if (distanceSq <= NPC_REACTION_DISTANCE_SQ) {
-                    // プレイヤーが近づいている
-                    trollMaterial.color.set(0xffff00); // 黄緑色に変更
+                    trollMaterial.color.set(0xffff00);
                 } else {
-                    // プレイヤーが離れている
-                    // userData に保存した元の色に戻す
                     trollMaterial.color.copy(troll.userData.originalColor);
                 }
             }
-            // --- Step 17 のコード ここまで ---
 
             const newPlayerChunkX = worldToChunkCoord(playerMesh.position.x);
             const newPlayerChunkY = worldToChunkCoord(playerMesh.position.y);
             const newPlayerChunkZ = worldToChunkCoord(playerMesh.position.z);
+
+            // --- Step 18 で追加したコード: UI更新 ---
+            // プレイヤー位置の更新
+            playerPosElement.textContent = `${playerMesh.position.x.toFixed(2)}, ${playerMesh.position.y.toFixed(2)}, ${playerMesh.position.z.toFixed(2)}`;
+            // プレイヤーチャンクの更新
+            playerChunkElement.textContent = `${newPlayerChunkX}, ${newPlayerChunkY}, ${newPlayerChunkZ}`;
+            // --- Step 18 のコード ここまで ---
 
             if (newPlayerChunkX !== playerChunkX || newPlayerChunkY !== playerChunkY || newPlayerChunkZ !== playerChunkZ) {
                 playerChunkX = newPlayerChunkX;
@@ -638,8 +711,8 @@
             renderer.setPixelRatio(window.devicePixelRatio);
         });
 
-        console.log("Scene, Camera, Renderer, Player, Dynamic Chunk Loading, Noise-based Terrain, Randomized Trees, First-Person View, Shadows, Interactive Chests, and Trolls initialized.");
-        console.log("Click to lock pointer. WASD to move. Mouse to look around. Press 'V' to toggle view mode (FPS/TPS). Press 'E' to interact with nearby chests or trolls.");
+        console.log("Scene, Camera, Renderer, Player, Dynamic Chunk Loading, Noise-based Terrain, Randomized Trees, First-Person View, Shadows, Interactive Chests, Trolls, UI, and Jump initialized.");
+        console.log("Click to lock pointer. WASD to move. Mouse to look around. Press 'V' to toggle view mode (FPS/TPS). Press 'E' to interact. Press 'Space' to jump.");
         // --- 以前のコード ここまで ---
 
     </script>
