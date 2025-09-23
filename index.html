@@ -68,9 +68,10 @@
         console.log(`プレイヤーの初期所属チャンク: (${playerChunkX}, ${playerChunkY}, ${playerChunkZ})`);
 
         const loadedChunks = new Map();
-        // --- Step 16 で追加したコード: ロードされたチェストを管理する配列 ---
-        const loadedChests = []; // チェストメッシュを直接格納する配列
-        // --- Step 16 のコード ここまで ---
+        const loadedChests = [];
+        // --- Step 17 で追加したコード: ロードされたトロールを管理する配列 ---
+        const loadedTrolls = []; // トロールメッシュを直接格納する配列
+        // --- Step 17 のコード ここまで ---
 
         function getChunkKey(chunkCoord) {
              return `${chunkCoord.cx},${chunkCoord.cy},${chunkCoord.cz}`;
@@ -149,38 +150,71 @@
             return chunkY * CHUNK_SIZE;
         }
 
-        // --- Step 16 で追加したコード: チェストの作成 ---
-        /**
-         * 簡単なチェストメッシュを生成する
-         * @returns {THREE.Mesh} チェストメッシュ
-         */
         function createChest() {
-            // チェストのジオメトリ (箱)
-            const chestGeometry = new THREE.BoxGeometry(1, 0.8, 0.6); // 幅, 高さ, 奥行き
-            // チェストのマテリアル (茶色)
+            const chestGeometry = new THREE.BoxGeometry(1, 0.8, 0.6);
             const chestMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
-            // メッシュ作成
             const chestMesh = new THREE.Mesh(chestGeometry, chestMaterial);
-            // シャドウ設定
             chestMesh.castShadow = true;
             chestMesh.receiveShadow = true;
-            // チェストの中心が地面に接するように、Y位置を少し調整
-            // chestMesh.position.y は配置時に設定
             return chestMesh;
         }
-        // --- Step 16 のコード ここまで ---
 
-        // --- Step 16 で追加したコード: チャンク内にチェストを配置 ---
+        function placeChestsInChunk(chunkGroup, cx, cz) {
+            if (Math.random() > 0.3) {
+                return;
+            }
+
+            const localX = Math.random() * CHUNK_SIZE;
+            const localZ = Math.random() * CHUNK_SIZE;
+            const worldX = cx * CHUNK_SIZE + localX;
+            const worldZ = cz * CHUNK_SIZE + localZ;
+            const terrainHeight = getTerrainHeightAt(worldX, worldZ);
+
+            const chest = createChest();
+
+            const halfChunkSize = CHUNK_SIZE / 2;
+            chest.position.set(
+                localX - halfChunkSize,
+                terrainHeight,
+                localZ - halfChunkSize
+            );
+
+            chunkGroup.add(chest);
+            loadedChests.push(chest);
+        }
+
+        // --- Step 17 で追加したコード: トロールの作成 ---
         /**
-         * 指定されたチャンク内にチェストをランダムに配置する
+         * 簡単なトロールメッシュを生成する
+         * @returns {THREE.Mesh} トロールメッシュ
+         */
+        function createTroll() {
+            // トロールのジオメトリ (球体)
+            const trollGeometry = new THREE.SphereGeometry(0.8, 16, 16); // 半径, 幅セグメント, 高さセグメント
+            // トロールのマテリアル (緑)
+            const trollMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
+            // メッシュ作成
+            const trollMesh = new THREE.Mesh(trollGeometry, trollMaterial);
+            // シャドウ設定
+            trollMesh.castShadow = true;
+            trollMesh.receiveShadow = true;
+            // 初期状態の色を保存 (反応用)
+            trollMesh.userData = { originalColor: new THREE.Color(0x00ff00) };
+            return trollMesh;
+        }
+        // --- Step 17 のコード ここまで ---
+
+        // --- Step 17 で追加したコード: チャンク内にトロールを配置 ---
+        /**
+         * 指定されたチャンク内にトロールをランダムに配置する
          * @param {THREE.Group} chunkGroup - チャンクのグループ
          * @param {number} cx - チャンクX座標
          * @param {number} cz - チャンクZ座標
          */
-        function placeChestsInChunk(chunkGroup, cx, cz) {
-            // 1. チェストを配置するかどうかをランダムに決定 (例: 30%の確率で配置)
-            if (Math.random() > 0.3) {
-                return; // 70%の確率で配置しない
+        function placeTrollsInChunk(chunkGroup, cx, cz) {
+            // 1. トロールを配置するかどうかをランダムに決定 (例: 20%の確率で配置)
+            if (Math.random() > 0.2) {
+                return; // 80%の確率で配置しない
             }
 
             // 2. チャンク内でのランダムなローカルXZ座標を決定
@@ -194,24 +228,24 @@
             // 4. その地点の地形の高さを取得
             const terrainHeight = getTerrainHeightAt(worldX, worldZ);
 
-            // 5. チェストメッシュを作成
-            const chest = createChest();
+            // 5. トロールメッシュを作成
+            const troll = createTroll();
 
-            // 6. チェストの位置を設定 (ローカル座標系でチャンクグループ内に配置)
+            // 6. トロールの位置を設定 (ローカル座標系でチャンクグループ内に配置)
             const halfChunkSize = CHUNK_SIZE / 2;
-            chest.position.set(
+            troll.position.set(
                 localX - halfChunkSize,
-                terrainHeight, // 地面の高さに配置
+                terrainHeight + 0.8, // 球体の半径(0.8)を足して地面に立たせる
                 localZ - halfChunkSize
             );
 
             // 7. チャンクグループに追加
-            chunkGroup.add(chest);
+            chunkGroup.add(troll);
 
-            // 8. ロードされたチェストリストに追加
-            loadedChests.push(chest);
+            // 8. ロードされたトロールリストに追加
+            loadedTrolls.push(troll);
         }
-        // --- Step 16 のコード ここまで ---
+        // --- Step 17 のコード ここまで ---
 
         function loadChunk(chunkCoord) {
             const key = getChunkKey(chunkCoord);
@@ -234,16 +268,16 @@
             chunkGroup.add(terrain);
 
             placeTreesInChunk(chunkGroup, chunkCoord.cx, chunkCoord.cz);
-            // --- Step 16 で追加したコード: チェストの配置呼び出し ---
             placeChestsInChunk(chunkGroup, chunkCoord.cx, chunkCoord.cz);
-            // --- Step 16 のコード ここまで ---
+            // --- Step 17 で追加したコード: トロールの配置呼び出し ---
+            placeTrollsInChunk(chunkGroup, chunkCoord.cx, chunkCoord.cz);
+            // --- Step 17 のコード ここまで ---
 
             scene.add(chunkGroup);
 
             loadedChunks.set(key, { group: chunkGroup, wireframe, terrain });
         }
 
-        // --- Step 16 で変更したコード: チャンクアンロード時にチェストも削除 ---
         function unloadChunk(key) {
             const chunkData = loadedChunks.get(key);
             if (!chunkData) {
@@ -251,14 +285,17 @@
             }
 
             // チャンクグループ内のチェストを loadedChests から削除
-            // これを行うには、グループ内のオブジェクトを走査する必要がある
             chunkData.group.traverse((child) => {
-                // loadedChests 配列から child (chest mesh) を探して削除
                 const chestIndex = loadedChests.indexOf(child);
                 if (chestIndex !== -1) {
                     loadedChests.splice(chestIndex, 1);
-                    // console.log("チェストをアンロードリストから削除しました。"); // デバッグ用
                 }
+                // --- Step 17 で追加したコード: トロールの削除 ---
+                const trollIndex = loadedTrolls.indexOf(child);
+                if (trollIndex !== -1) {
+                    loadedTrolls.splice(trollIndex, 1);
+                }
+                // --- Step 17 のコード ここまで ---
             });
 
             scene.remove(chunkData.group);
@@ -274,7 +311,6 @@
 
             loadedChunks.delete(key);
         }
-        // --- Step 16 のコード ここまで ---
 
         const initialVisibleChunks = calculateVisibleChunks(playerChunkX, playerChunkY, playerChunkZ);
         initialVisibleChunks.forEach(chunkCoord => {
@@ -448,7 +484,6 @@
         const axesHelper = new THREE.AxesHelper(5);
         playerMesh.add(axesHelper);
 
-        // --- Step 16 で変更したコード: キー入力処理の拡張 ---
         const keyState = {};
         window.addEventListener('keydown', (event) => {
             keyState[event.code] = true;
@@ -456,54 +491,55 @@
             if (event.code === 'KeyV') {
                 toggleViewMode();
             }
-            // --- Step 16 で追加したコード: Eキーでインタラクト ---
             if (event.code === 'KeyE') {
                 interact();
             }
-            // --- Step 16 のコード ここまで ---
         });
         window.addEventListener('keyup', (event) => {
             keyState[event.code] = false;
         });
-        // --- Step 16 のコード ここまで ---
 
         const clock = new THREE.Clock();
 
         // --- Step 16 で追加したコード: インタラクト処理 ---
-        /**
-         * プレイヤーのインタラクト処理
-         */
         function interact() {
-            // console.log("Eキーが押されました。インタラクトを試みます。"); // デバッグ用
+            const INTERACT_DISTANCE = 3.0;
 
-            // 1. インタラクト可能な距離を定義
-            const INTERACT_DISTANCE = 3.0; // 3メートル以内
-
-            // 2. 最も近いチェストを探す
             let closestChest = null;
-            let closestDistanceSq = Infinity; // 距離の二乗で比較（計算効率のため）
+            let closestTroll = null; // --- Step 17 で追加 ---
+            let closestDistanceSq = Infinity;
 
             for (const chest of loadedChests) {
-                // 3. プレイヤーとチェストの距離の二乗を計算
                 const distanceSq = playerMesh.position.distanceToSquared(chest.position);
-
-                // 4. より近いチェストを更新
                 if (distanceSq < closestDistanceSq) {
                     closestDistanceSq = distanceSq;
                     closestChest = chest;
                 }
             }
-
-            // 5. 最も近いチェストが見つかり、かつインタラクト距離内にあるかチェック
-            if (closestChest && closestDistanceSq <= INTERACT_DISTANCE * INTERACT_DISTANCE) {
-                // 6. インタラクトイベントの処理
-                console.log("チェストを開けました！中身は青りんごです。");
-                // 将来的には、UIを表示したり、インベントリにアイテムを追加したりする
-            } else {
-                // console.log("インタラクト可能なチェストが近くにありません。"); // デバッグ用
+            // --- Step 17 で追加したコード: トロールとの距離計算 ---
+            for (const troll of loadedTrolls) {
+                const distanceSq = playerMesh.position.distanceToSquared(troll.position);
+                if (distanceSq < closestDistanceSq) {
+                    closestDistanceSq = distanceSq;
+                    // closestChest は null になる可能性があるが、
+                    // トロールの方が近ければ上書きされる
+                    closestChest = null; // チェストの候補をクリア
+                    closestTroll = troll; // トロールを候補に設定
+                }
             }
+            // --- Step 17 のコード ここまで ---
+
+            // --- Step 17 で変更したコード: インタラクト対象の判定 ---
+            if (closestChest && closestDistanceSq <= INTERACT_DISTANCE * INTERACT_DISTANCE) {
+                console.log("チェストを開けました！中身は青りんごです。");
+            } else if (closestTroll && closestDistanceSq <= INTERACT_DISTANCE * INTERACT_DISTANCE) {
+                console.log("トロールに話しかけました。「こんにちは、冒険者よ！何か用かい？」");
+            } else {
+                // console.log("インタラクト可能なオブジェクトが近くにありません。");
+            }
+            // --- Step 17 のコード ここまで ---
         }
-        // --- Step 16 のコード ここまで ---
+        // --- Step 16/17 のコード ここまで ---
 
         function animate() {
             requestAnimationFrame(animate);
@@ -537,6 +573,26 @@
 
             const terrainHeight = getTerrainHeightAt(playerMesh.position.x, playerMesh.position.z);
             playerMesh.position.y = terrainHeight + 1;
+
+            // --- Step 17 で追加したコード: トロールの反応処理 ---
+            // NPC反応距離
+            const NPC_REACTION_DISTANCE = 5.0;
+            const NPC_REACTION_DISTANCE_SQ = NPC_REACTION_DISTANCE * NPC_REACTION_DISTANCE;
+
+            for (const troll of loadedTrolls) {
+                const distanceSq = playerMesh.position.distanceToSquared(troll.position);
+                const trollMaterial = troll.material;
+
+                if (distanceSq <= NPC_REACTION_DISTANCE_SQ) {
+                    // プレイヤーが近づいている
+                    trollMaterial.color.set(0xffff00); // 黄緑色に変更
+                } else {
+                    // プレイヤーが離れている
+                    // userData に保存した元の色に戻す
+                    trollMaterial.color.copy(troll.userData.originalColor);
+                }
+            }
+            // --- Step 17 のコード ここまで ---
 
             const newPlayerChunkX = worldToChunkCoord(playerMesh.position.x);
             const newPlayerChunkY = worldToChunkCoord(playerMesh.position.y);
@@ -582,8 +638,8 @@
             renderer.setPixelRatio(window.devicePixelRatio);
         });
 
-        console.log("Scene, Camera, Renderer, Player, Dynamic Chunk Loading, Noise-based Terrain, Randomized Trees, First-Person View, Shadows, and Interactive Chests initialized.");
-        console.log("Click to lock pointer. WASD to move. Mouse to look around. Press 'V' to toggle view mode (FPS/TPS). Press 'E' to interact with nearby chests.");
+        console.log("Scene, Camera, Renderer, Player, Dynamic Chunk Loading, Noise-based Terrain, Randomized Trees, First-Person View, Shadows, Interactive Chests, and Trolls initialized.");
+        console.log("Click to lock pointer. WASD to move. Mouse to look around. Press 'V' to toggle view mode (FPS/TPS). Press 'E' to interact with nearby chests or trolls.");
         // --- 以前のコード ここまで ---
 
     </script>
