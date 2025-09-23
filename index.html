@@ -68,12 +68,14 @@
         console.log(`プレイヤーの初期所属チャンク: (${playerChunkX}, ${playerChunkY}, ${playerChunkZ})`);
 
         const loadedChunks = new Map();
+        // --- Step 16 で追加したコード: ロードされたチェストを管理する配列 ---
+        const loadedChests = []; // チェストメッシュを直接格納する配列
+        // --- Step 16 のコード ここまで ---
 
         function getChunkKey(chunkCoord) {
              return `${chunkCoord.cx},${chunkCoord.cy},${chunkCoord.cz}`;
         }
 
-        // --- Step 15 で変更したコード: 地形メッシュにシャドウ設定を追加 ---
         function createNoiseTerrain(cx, cy, cz) {
             const perlin = new ImprovedNoise();
             const geometry = new THREE.BufferGeometry();
@@ -127,13 +129,10 @@
                 0,
                 chunkToWorldCenter(cz)
             );
-            // --- Step 15 で追加したコード: 地形メッシュのシャドウ設定 ---
-            terrainMesh.receiveShadow = true; // 地形は影を受ける
-            terrainMesh.castShadow = true;    // 地形は影を落とす
-            // --- Step 15 のコード ここまで ---
+            terrainMesh.receiveShadow = true;
+            terrainMesh.castShadow = true;
             return terrainMesh;
         }
-        // --- Step 15 のコード ここまで ---
 
         function getTerrainHeightAt(x, z) {
             const chunkX = worldToChunkCoord(x);
@@ -149,6 +148,70 @@
 
             return chunkY * CHUNK_SIZE;
         }
+
+        // --- Step 16 で追加したコード: チェストの作成 ---
+        /**
+         * 簡単なチェストメッシュを生成する
+         * @returns {THREE.Mesh} チェストメッシュ
+         */
+        function createChest() {
+            // チェストのジオメトリ (箱)
+            const chestGeometry = new THREE.BoxGeometry(1, 0.8, 0.6); // 幅, 高さ, 奥行き
+            // チェストのマテリアル (茶色)
+            const chestMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+            // メッシュ作成
+            const chestMesh = new THREE.Mesh(chestGeometry, chestMaterial);
+            // シャドウ設定
+            chestMesh.castShadow = true;
+            chestMesh.receiveShadow = true;
+            // チェストの中心が地面に接するように、Y位置を少し調整
+            // chestMesh.position.y は配置時に設定
+            return chestMesh;
+        }
+        // --- Step 16 のコード ここまで ---
+
+        // --- Step 16 で追加したコード: チャンク内にチェストを配置 ---
+        /**
+         * 指定されたチャンク内にチェストをランダムに配置する
+         * @param {THREE.Group} chunkGroup - チャンクのグループ
+         * @param {number} cx - チャンクX座標
+         * @param {number} cz - チャンクZ座標
+         */
+        function placeChestsInChunk(chunkGroup, cx, cz) {
+            // 1. チェストを配置するかどうかをランダムに決定 (例: 30%の確率で配置)
+            if (Math.random() > 0.3) {
+                return; // 70%の確率で配置しない
+            }
+
+            // 2. チャンク内でのランダムなローカルXZ座標を決定
+            const localX = Math.random() * CHUNK_SIZE;
+            const localZ = Math.random() * CHUNK_SIZE;
+
+            // 3. ローカル座標をワールド座標に変換
+            const worldX = cx * CHUNK_SIZE + localX;
+            const worldZ = cz * CHUNK_SIZE + localZ;
+
+            // 4. その地点の地形の高さを取得
+            const terrainHeight = getTerrainHeightAt(worldX, worldZ);
+
+            // 5. チェストメッシュを作成
+            const chest = createChest();
+
+            // 6. チェストの位置を設定 (ローカル座標系でチャンクグループ内に配置)
+            const halfChunkSize = CHUNK_SIZE / 2;
+            chest.position.set(
+                localX - halfChunkSize,
+                terrainHeight, // 地面の高さに配置
+                localZ - halfChunkSize
+            );
+
+            // 7. チャンクグループに追加
+            chunkGroup.add(chest);
+
+            // 8. ロードされたチェストリストに追加
+            loadedChests.push(chest);
+        }
+        // --- Step 16 のコード ここまで ---
 
         function loadChunk(chunkCoord) {
             const key = getChunkKey(chunkCoord);
@@ -171,17 +234,32 @@
             chunkGroup.add(terrain);
 
             placeTreesInChunk(chunkGroup, chunkCoord.cx, chunkCoord.cz);
+            // --- Step 16 で追加したコード: チェストの配置呼び出し ---
+            placeChestsInChunk(chunkGroup, chunkCoord.cx, chunkCoord.cz);
+            // --- Step 16 のコード ここまで ---
 
             scene.add(chunkGroup);
 
             loadedChunks.set(key, { group: chunkGroup, wireframe, terrain });
         }
 
+        // --- Step 16 で変更したコード: チャンクアンロード時にチェストも削除 ---
         function unloadChunk(key) {
             const chunkData = loadedChunks.get(key);
             if (!chunkData) {
                 return;
             }
+
+            // チャンクグループ内のチェストを loadedChests から削除
+            // これを行うには、グループ内のオブジェクトを走査する必要がある
+            chunkData.group.traverse((child) => {
+                // loadedChests 配列から child (chest mesh) を探して削除
+                const chestIndex = loadedChests.indexOf(child);
+                if (chestIndex !== -1) {
+                    loadedChests.splice(chestIndex, 1);
+                    // console.log("チェストをアンロードリストから削除しました。"); // デバッグ用
+                }
+            });
 
             scene.remove(chunkData.group);
 
@@ -196,6 +274,7 @@
 
             loadedChunks.delete(key);
         }
+        // --- Step 16 のコード ここまで ---
 
         const initialVisibleChunks = calculateVisibleChunks(playerChunkX, playerChunkY, playerChunkZ);
         initialVisibleChunks.forEach(chunkCoord => {
@@ -219,7 +298,6 @@
             return chunkWireframe;
         }
 
-        // --- Step 14/15 で変更/追加したコード: 木のランダム化とシャドウ設定 ---
         function createTree() {
             const treeGroup = new THREE.Group();
 
@@ -242,20 +320,16 @@
             const trunkMaterial = new THREE.MeshStandardMaterial({ color: trunkColor });
             const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
             trunk.position.y = trunkHeight / 2;
-            // --- Step 15 で追加したコード: 茎のシャドウ設定 ---
-            trunk.castShadow = true;    // 茎は影を落とす
-            trunk.receiveShadow = true; // 茎は影を受ける（例: 他の木の影）
-            // --- Step 15 のコード ここまで ---
+            trunk.castShadow = true;
+            trunk.receiveShadow = true;
             treeGroup.add(trunk);
 
             const leavesGeometry = new THREE.SphereGeometry(leavesRadius, 8, 8);
             const leavesMaterial = new THREE.MeshStandardMaterial({ color: leafColor });
             const leaves = new THREE.Mesh(leavesGeometry, leavesMaterial);
             leaves.position.y = trunkHeight + leavesRadius * 0.7;
-            // --- Step 15 で追加したコード: 葉のシャドウ設定 ---
-            leaves.castShadow = true;    // 葉は影を落とす
-            leaves.receiveShadow = true; // 葉は影を受ける
-            // --- Step 15 のコード ここまで ---
+            leaves.castShadow = true;
+            leaves.receiveShadow = true;
             treeGroup.add(leaves);
 
             return treeGroup;
@@ -282,7 +356,6 @@
                 chunkGroup.add(tree);
             }
         }
-        // --- Step 14/15 のコード ここまで ---
 
         let isFirstPersonView = true;
 
@@ -309,46 +382,31 @@
         const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('gameCanvas'), antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
-        // --- Step 15 で追加したコード: レンダラーのシャドウマップ設定 ---
-        renderer.shadowMap.enabled = true; // シャドウマップを有効化
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap; // 影のタイプをソフトシャドウに設定
-        // --- Step 15 のコード ここまで ---
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-        // --- Step 15 で変更したコード: 環境光の強度を少し下げる ---
-        const ambientLight = new THREE.AmbientLight(0x404040); // 強度を 0x606060 から 0x404040 に変更
+        const ambientLight = new THREE.AmbientLight(0x404040);
         scene.add(ambientLight);
-        // --- Step 15 のコード ここまで ---
 
-        // --- Step 15 で変更/追加したコード: ディレクショナルライトのシャドウ設定 ---
         const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
         directionalLight.position.set(1, 1, 0.5).normalize();
-        // --- Step 15 で追加したコード: ディレクショナルライトのシャドウ設定 ---
-        directionalLight.castShadow = true; // ライトが影を落とすことを許可
-
-        // シャドウマップの解像度を設定 (大きいほど高品質だが重い)
+        directionalLight.castShadow = true;
         directionalLight.shadow.mapSize.width = 2048;
         directionalLight.shadow.mapSize.height = 2048;
-
-        // シャドウを計算する範囲（ライトから見たカメラの視錐台）を設定
-        // 単位はワールド座標
         directionalLight.shadow.camera.near = 0.5;
         directionalLight.shadow.camera.far = 500;
         directionalLight.shadow.camera.left = -100;
         directionalLight.shadow.camera.right = 100;
         directionalLight.shadow.camera.top = 100;
         directionalLight.shadow.camera.bottom = -100;
-        // --- Step 15 のコード ここまで ---
         scene.add(directionalLight);
-        // --- Step 15 のコード ここまで ---
 
         const playerGeometry = new THREE.BoxGeometry(1, 2, 1);
         const playerMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
         const playerMesh = new THREE.Mesh(playerGeometry, playerMaterial);
         playerMesh.position.copy(playerPosition);
-        // --- Step 15 で追加したコード: プレイヤーメッシュのシャドウ設定 ---
-        playerMesh.castShadow = true;    // プレイヤーは影を落とす
-        playerMesh.receiveShadow = false; // プレイヤーは影を受けない（オプション）
-        // --- Step 15 のコード ここまで ---
+        playerMesh.castShadow = true;
+        playerMesh.receiveShadow = false;
         scene.add(playerMesh);
         console.log("プレイヤーメッシュを追加しました。");
 
@@ -390,6 +448,7 @@
         const axesHelper = new THREE.AxesHelper(5);
         playerMesh.add(axesHelper);
 
+        // --- Step 16 で変更したコード: キー入力処理の拡張 ---
         const keyState = {};
         window.addEventListener('keydown', (event) => {
             keyState[event.code] = true;
@@ -397,12 +456,54 @@
             if (event.code === 'KeyV') {
                 toggleViewMode();
             }
+            // --- Step 16 で追加したコード: Eキーでインタラクト ---
+            if (event.code === 'KeyE') {
+                interact();
+            }
+            // --- Step 16 のコード ここまで ---
         });
         window.addEventListener('keyup', (event) => {
             keyState[event.code] = false;
         });
+        // --- Step 16 のコード ここまで ---
 
         const clock = new THREE.Clock();
+
+        // --- Step 16 で追加したコード: インタラクト処理 ---
+        /**
+         * プレイヤーのインタラクト処理
+         */
+        function interact() {
+            // console.log("Eキーが押されました。インタラクトを試みます。"); // デバッグ用
+
+            // 1. インタラクト可能な距離を定義
+            const INTERACT_DISTANCE = 3.0; // 3メートル以内
+
+            // 2. 最も近いチェストを探す
+            let closestChest = null;
+            let closestDistanceSq = Infinity; // 距離の二乗で比較（計算効率のため）
+
+            for (const chest of loadedChests) {
+                // 3. プレイヤーとチェストの距離の二乗を計算
+                const distanceSq = playerMesh.position.distanceToSquared(chest.position);
+
+                // 4. より近いチェストを更新
+                if (distanceSq < closestDistanceSq) {
+                    closestDistanceSq = distanceSq;
+                    closestChest = chest;
+                }
+            }
+
+            // 5. 最も近いチェストが見つかり、かつインタラクト距離内にあるかチェック
+            if (closestChest && closestDistanceSq <= INTERACT_DISTANCE * INTERACT_DISTANCE) {
+                // 6. インタラクトイベントの処理
+                console.log("チェストを開けました！中身は青りんごです。");
+                // 将来的には、UIを表示したり、インベントリにアイテムを追加したりする
+            } else {
+                // console.log("インタラクト可能なチェストが近くにありません。"); // デバッグ用
+            }
+        }
+        // --- Step 16 のコード ここまで ---
 
         function animate() {
             requestAnimationFrame(animate);
@@ -481,8 +582,8 @@
             renderer.setPixelRatio(window.devicePixelRatio);
         });
 
-        console.log("Scene, Camera, Renderer, Player, Dynamic Chunk Loading, Noise-based Terrain, Randomized Trees, First-Person View, and Shadows initialized.");
-        console.log("Click to lock pointer. WASD to move. Mouse to look around. Press 'V' to toggle view mode (FPS/TPS). Shadows are enabled.");
+        console.log("Scene, Camera, Renderer, Player, Dynamic Chunk Loading, Noise-based Terrain, Randomized Trees, First-Person View, Shadows, and Interactive Chests initialized.");
+        console.log("Click to lock pointer. WASD to move. Mouse to look around. Press 'V' to toggle view mode (FPS/TPS). Press 'E' to interact with nearby chests.");
         // --- 以前のコード ここまで ---
 
     </script>
