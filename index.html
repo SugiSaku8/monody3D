@@ -73,6 +73,7 @@
              return `${chunkCoord.cx},${chunkCoord.cy},${chunkCoord.cz}`;
         }
 
+        // --- Step 15 で変更したコード: 地形メッシュにシャドウ設定を追加 ---
         function createNoiseTerrain(cx, cy, cz) {
             const perlin = new ImprovedNoise();
             const geometry = new THREE.BufferGeometry();
@@ -126,8 +127,13 @@
                 0,
                 chunkToWorldCenter(cz)
             );
+            // --- Step 15 で追加したコード: 地形メッシュのシャドウ設定 ---
+            terrainMesh.receiveShadow = true; // 地形は影を受ける
+            terrainMesh.castShadow = true;    // 地形は影を落とす
+            // --- Step 15 のコード ここまで ---
             return terrainMesh;
         }
+        // --- Step 15 のコード ここまで ---
 
         function getTerrainHeightAt(x, z) {
             const chunkX = worldToChunkCoord(x);
@@ -138,7 +144,6 @@
             const chunkData = loadedChunks.get(key);
 
             if (!chunkData || !chunkData.terrain) {
-                // console.warn(`チャンク ${key} の地形データが見つかりません。ベース高さを返します。`);
                 return chunkY * CHUNK_SIZE;
             }
 
@@ -165,9 +170,7 @@
             chunkGroup.add(wireframe);
             chunkGroup.add(terrain);
 
-            // --- Step 14 で変更したコード: 木のランダム化対応 ---
             placeTreesInChunk(chunkGroup, chunkCoord.cx, chunkCoord.cz);
-            // --- Step 14 のコード ここまで ---
 
             scene.add(chunkGroup);
 
@@ -216,51 +219,50 @@
             return chunkWireframe;
         }
 
-        // --- Step 14 で変更/追加したコード: 木のランダム化とプレイヤー視点 ---
-        /**
-         * ランダムな木メッシュを生成する (パラメータをランダム化)
-         * @returns {THREE.Group} 木のグループ
-         */
+        // --- Step 14/15 で変更/追加したコード: 木のランダム化とシャドウ設定 ---
         function createTree() {
             const treeGroup = new THREE.Group();
 
-            // 1. ランダムなパラメータを生成
-            const trunkHeight = 2 + Math.random() * 4; // 2m から 6m
-            const trunkTopRadius = 0.1 + Math.random() * 0.3; // 0.1 から 0.4m
-            const trunkBottomRadius = trunkTopRadius + 0.05 + Math.random() * 0.2; // 下部は少し太く
-            const leavesRadius = 1.0 + Math.random() * 2.0; // 1.0 から 3.0m
+            const trunkHeight = 2 + Math.random() * 4;
+            const trunkTopRadius = 0.1 + Math.random() * 0.3;
+            const trunkBottomRadius = trunkTopRadius + 0.05 + Math.random() * 0.2;
+            const leavesRadius = 1.0 + Math.random() * 2.0;
 
-            // 2. ランダムな色を生成 (HSL色空間で緑系)
-            const leafHue = 0.3 + Math.random() * 0.1; // 緑(G)に偏らせる (H: 0.3-0.4)
-            const leafSaturation = 0.5 + Math.random() * 0.5; // S: 0.5-1.0
-            const leafLightness = 0.2 + Math.random() * 0.3; // L: 0.2-0.5 (暗めの緑)
+            const leafHue = 0.3 + Math.random() * 0.1;
+            const leafSaturation = 0.5 + Math.random() * 0.5;
+            const leafLightness = 0.2 + Math.random() * 0.3;
             const leafColor = new THREE.Color(`hsl(${leafHue * 360}, ${leafSaturation * 100}%, ${leafLightness * 100}%)`);
 
-            const trunkHue = 0.1; // 茶色に固定 or 少しランダムに
+            const trunkHue = 0.1;
             const trunkSaturation = 0.3 + Math.random() * 0.3;
             const trunkLightness = 0.1 + Math.random() * 0.2;
             const trunkColor = new THREE.Color(`hsl(${trunkHue * 360}, ${trunkSaturation * 100}%, ${trunkLightness * 100}%)`);
 
-            // 3. 茎 (Cylinder) を生成
             const trunkGeometry = new THREE.CylinderGeometry(trunkTopRadius, trunkBottomRadius, trunkHeight, 8);
             const trunkMaterial = new THREE.MeshStandardMaterial({ color: trunkColor });
             const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
-            trunk.position.y = trunkHeight / 2; // 地面から半分の高さに配置
+            trunk.position.y = trunkHeight / 2;
+            // --- Step 15 で追加したコード: 茎のシャドウ設定 ---
+            trunk.castShadow = true;    // 茎は影を落とす
+            trunk.receiveShadow = true; // 茎は影を受ける（例: 他の木の影）
+            // --- Step 15 のコード ここまで ---
             treeGroup.add(trunk);
 
-            // 4. 葉 (Sphere) を生成
             const leavesGeometry = new THREE.SphereGeometry(leavesRadius, 8, 8);
             const leavesMaterial = new THREE.MeshStandardMaterial({ color: leafColor });
             const leaves = new THREE.Mesh(leavesGeometry, leavesMaterial);
-            leaves.position.y = trunkHeight + leavesRadius * 0.7; // 茎の上に配置、少し重ならせる
+            leaves.position.y = trunkHeight + leavesRadius * 0.7;
+            // --- Step 15 で追加したコード: 葉のシャドウ設定 ---
+            leaves.castShadow = true;    // 葉は影を落とす
+            leaves.receiveShadow = true; // 葉は影を受ける
+            // --- Step 15 のコード ここまで ---
             treeGroup.add(leaves);
 
             return treeGroup;
         }
 
         function placeTreesInChunk(chunkGroup, cx, cz) {
-            // 木の本数も少しランダムに
-            const numTrees = Math.floor(Math.random() * 20) + 5; // 5 から 25本
+            const numTrees = Math.floor(Math.random() * 20) + 5;
 
             const halfChunkSize = CHUNK_SIZE / 2;
 
@@ -271,7 +273,7 @@
                 const worldZ = cz * CHUNK_SIZE + localZ;
                 const terrainHeight = getTerrainHeightAt(worldX, worldZ);
 
-                const tree = createTree(); // ランダム化された木を生成
+                const tree = createTree();
                 tree.position.set(
                     localX - halfChunkSize,
                     terrainHeight,
@@ -280,30 +282,22 @@
                 chunkGroup.add(tree);
             }
         }
+        // --- Step 14/15 のコード ここまで ---
 
-        // --- Step 14 で追加したコード: プレイヤー視点（一人称）の切り替え ---
-        // 視点モード (true: 一人称, false: 三人称)
         let isFirstPersonView = true;
 
-        /**
-         * 視点モードを切り替える
-         */
         function toggleViewMode() {
             isFirstPersonView = !isFirstPersonView;
             if (isFirstPersonView) {
-                // 一人称視点: プレイヤーメッシュを非表示、カメラを目の高さに
                 playerMesh.visible = false;
-                camera.position.set(0, 1.6, 0); // 目の高さ 1.6m
+                camera.position.set(0, 1.6, 0);
                 console.log("視点を一人称に切り替えました。");
             } else {
-                // 三人称視点: プレイヤーメッシュを表示、カメラを少し離れた位置に
                 playerMesh.visible = true;
-                camera.position.set(0, 2, -3); // 例: 頭上後方
+                camera.position.set(0, 2, -3);
                 console.log("視点を三人称に切り替えました。");
             }
         }
-        // --- Step 14 のコード ここまで ---
-
 
         const camera = new THREE.PerspectiveCamera(
             75,
@@ -315,31 +309,54 @@
         const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('gameCanvas'), antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
-        const ambientLight = new THREE.AmbientLight(0x606060);
-        scene.add(ambientLight);
+        // --- Step 15 で追加したコード: レンダラーのシャドウマップ設定 ---
+        renderer.shadowMap.enabled = true; // シャドウマップを有効化
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap; // 影のタイプをソフトシャドウに設定
+        // --- Step 15 のコード ここまで ---
 
+        // --- Step 15 で変更したコード: 環境光の強度を少し下げる ---
+        const ambientLight = new THREE.AmbientLight(0x404040); // 強度を 0x606060 から 0x404040 に変更
+        scene.add(ambientLight);
+        // --- Step 15 のコード ここまで ---
+
+        // --- Step 15 で変更/追加したコード: ディレクショナルライトのシャドウ設定 ---
         const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
         directionalLight.position.set(1, 1, 0.5).normalize();
+        // --- Step 15 で追加したコード: ディレクショナルライトのシャドウ設定 ---
+        directionalLight.castShadow = true; // ライトが影を落とすことを許可
+
+        // シャドウマップの解像度を設定 (大きいほど高品質だが重い)
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
+
+        // シャドウを計算する範囲（ライトから見たカメラの視錐台）を設定
+        // 単位はワールド座標
+        directionalLight.shadow.camera.near = 0.5;
+        directionalLight.shadow.camera.far = 500;
+        directionalLight.shadow.camera.left = -100;
+        directionalLight.shadow.camera.right = 100;
+        directionalLight.shadow.camera.top = 100;
+        directionalLight.shadow.camera.bottom = -100;
+        // --- Step 15 のコード ここまで ---
         scene.add(directionalLight);
+        // --- Step 15 のコード ここまで ---
 
         const playerGeometry = new THREE.BoxGeometry(1, 2, 1);
         const playerMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
         const playerMesh = new THREE.Mesh(playerGeometry, playerMaterial);
         playerMesh.position.copy(playerPosition);
+        // --- Step 15 で追加したコード: プレイヤーメッシュのシャドウ設定 ---
+        playerMesh.castShadow = true;    // プレイヤーは影を落とす
+        playerMesh.receiveShadow = false; // プレイヤーは影を受けない（オプション）
+        // --- Step 15 のコード ここまで ---
         scene.add(playerMesh);
         console.log("プレイヤーメッシュを追加しました。");
 
-        // --- Step 14 で変更したコード: プレイヤー視点の初期設定 ---
-        // カメラをプレイヤーの子要素として配置
         playerMesh.add(camera);
-        // 初期状態は一人称視点
-        camera.position.set(0, 1.6, 0); // 目の高さ 1.6m
+        camera.position.set(0, 1.6, 0);
         camera.rotation.set(0, 0, 0);
-        playerMesh.visible = false; // 一人称時は自分を非表示
-        console.log("初期視点: 一人称");
-        // --- Step 14 のコード ここまで ---
+        playerMesh.visible = false;
 
-        // マウスルックの実装（前回のコードとほぼ同じ）
         const MOUSE_SENSITIVITY = 0.002;
         let playerRotationX = 0;
         const PLAYER_ROTATION_X_MIN = -Math.PI / 2 + 0.1;
@@ -373,22 +390,17 @@
         const axesHelper = new THREE.AxesHelper(5);
         playerMesh.add(axesHelper);
 
-        // --- Step 14 で追加したコード: 視点切り替えキーの追加 ---
-        // キーボード入力処理に追加
         const keyState = {};
         window.addEventListener('keydown', (event) => {
             keyState[event.code] = true;
 
-            // --- Step 14 で追加したコード: Vキーで視点切り替え ---
             if (event.code === 'KeyV') {
                 toggleViewMode();
             }
-            // --- Step 14 のコード ここまで ---
         });
         window.addEventListener('keyup', (event) => {
             keyState[event.code] = false;
         });
-        // --- Step 14 のコード ここまで ---
 
         const clock = new THREE.Clock();
 
@@ -397,7 +409,6 @@
 
             const delta = clock.getDelta();
 
-            // 水平移動 (XZ平面)
             const playerDirection = playerMesh.rotation.y;
 
             let moveX = 0;
@@ -470,8 +481,8 @@
             renderer.setPixelRatio(window.devicePixelRatio);
         });
 
-        console.log("Scene, Camera, Renderer, Player, Dynamic Chunk Loading, Noise-based Terrain, Randomized Trees, and First-Person View initialized.");
-        console.log("Click to lock pointer. WASD to move. Mouse to look around. Press 'V' to toggle view mode (FPS/TPS).");
+        console.log("Scene, Camera, Renderer, Player, Dynamic Chunk Loading, Noise-based Terrain, Randomized Trees, First-Person View, and Shadows initialized.");
+        console.log("Click to lock pointer. WASD to move. Mouse to look around. Press 'V' to toggle view mode (FPS/TPS). Shadows are enabled.");
         // --- 以前のコード ここまで ---
 
     </script>
