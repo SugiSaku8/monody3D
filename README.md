@@ -19,32 +19,8 @@ Monody 3D is a 3D game project developed by CarnationStudio. It delivers an imme
 - **Backend**: Node.js
 - **Version Control**: Git
 
-## Setup Instructions
-
-### Prerequisites
-
-- Node.js (v14 or higher recommended)
-- npm (included with Node.js)
-
-### Installation Steps
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/your-username/monody3D.git
-   cd monody3D
-   ```
-
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Start the development server:
-   ```bash
-   npm start
-   ```
-
-4. Open `http://localhost:3000` in your browser.
+## How to Play
+Open the link on this page
 
 ## Development Team
 
@@ -54,6 +30,12 @@ Monody 3D is a 3D game project developed by CarnationStudio. It delivers an imme
 ## License
 
 This project is proprietary software. Unauthorized copying, modification, or redistribution is prohibited.
+The same applies to all code.
+
+## Contact
+
+For questions or inquiries, please contact [carnation.scr.official@gmail.com](mailto:carnation.scr.official@gmail.com).
+
 
 ---
 
