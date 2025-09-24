@@ -4,7 +4,88 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>3D無限生成ゲーム</title>
-    <link rel="stylesheet" href="./styles/style.css" />
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+        font-family: sans-serif;
+      }
+      canvas {
+        display: block;
+      }
+      #canvasWrapper {
+        width: 100vw;
+        height: 100vh;
+        cursor: none;
+      }
+      #ui {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        background-color: rgba(0, 0, 0, 0.5);
+        color: white;
+        padding: 10px;
+        border-radius: 5px;
+        font-size: 14px;
+        pointer-events: none;
+        z-index: 100;
+      }
+      #message {
+        margin-top: 5px;
+        color: #ffff00;
+      }
+      #loading {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: #000;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        color: white;
+        font-size: 24px;
+        z-index: 1000;
+      }
+      .loading-spinner {
+        border: 4px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        border-top: 4px solid #fff;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+        margin-right: 15px;
+      }
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      .loading-content {
+        display: flex;
+        align-items: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="loading">
+      <div class="loading-content">
+        <div class="loading-spinner"></div>
+        <div>Loading game assets...</div>
+      </div>
+    </div>
+    
+    <div id="canvasWrapper">
+      <canvas id="gameCanvas"></canvas>
+    </div>
+    
+    <div id="ui">
+      <div>位置: <span id="playerPos">0, 0, 0</span></div>
+      <div>チャンク: <span id="playerChunk">0, 0, 0</span></div>
+      <div>OnGround: <span id="onGround">true</span></div>
+      <div id="message"></div>
+    </div>
+    
     <script type="importmap">
       {
         "imports": {
@@ -14,27 +95,6 @@
         }
       }
     </script>
-  </head>
-  <body>
-    <div id="canvasWrapper">
-      <canvas id="gameCanvas"></canvas>
-    </div>
-    <div id="ui">
-      <div>位置: <span id="playerPos">0, 0, 0</span></div>
-      <div>チャンク: <span id="playerChunk">0, 0, 0</span></div>
-      <div>OnGround: <span id="onGround">true</span></div>
-      <div>HP: <span id="playerHP">100</span></div>
-      <div id="message"></div>
-    </div>
-    <div id="inventory">
-      <div>インベントリ:</div>
-      <div class="item">青りんご: <span id="inv_apple">0</span></div>
-      <div class="item">棒: <span id="inv_stick">0</span></div>
-      <div>(Cキーでクラフト)</div>
-    </div>
-    <div id="gameOver">ゲームオーバー</div>
-
-    <!-- メインスクリプトの読み込み -->
-    <script type="module" src="./js/main.js"></script>
+    <script type="module" src="/js/main.js"></script>
   </body>
 </html>
