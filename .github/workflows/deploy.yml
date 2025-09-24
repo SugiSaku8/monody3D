@@ -10,9 +10,10 @@ on:
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
-  contents: read
+  contents: write  # Changed from read to write
   pages: write
-  id-token: write
+  id-token: write  # Needed for OIDC authentication
+  deployments: write  # Added for deployment status
 
 # Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
 # However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
@@ -32,18 +33,11 @@ jobs:
         uses: actions/checkout@v4
       - name: Setup Pages
         uses: actions/configure-pages@v5
-        with:
-          # Enable GitHub Pages if not already enabled
-          enablement: true
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Upload only the necessary files (root directory)
-          path: '/'
-          # Explicitly set the root directory for GitHub Pages
-          destination: '/'
-          # Clean the deployment directory before uploading
-          clean: true
+          # Upload the entire repository
+          path: '.'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
