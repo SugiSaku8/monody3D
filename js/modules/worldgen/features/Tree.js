@@ -1,62 +1,13 @@
 // js/modules/worldgen/features/Tree.js
 import * as THREE from 'three';
 
-// --- 追加: パスを定義するヘルパークラス (L-System風の簡易版) ---
-class TreePath {
-    constructor(startPoint, startDirection, maxDepth, currentDepth = 0) {
-        this.points = [startPoint.clone()];
-        this.directions = [startDirection.clone()];
-        this.children = [];
-        this.maxDepth = maxDepth;
-        this.currentDepth = currentDepth;
-    }
-
-    growSegment(length, noiseScale, branchProbability, maxBranches) {
-        if (this.currentDepth >= this.maxDepth) return;
-
-        const lastPoint = this.points[this.points.length - 1];
-        const lastDirection = this.directions[this.directions.length - 1];
-
-        // 次の方向を計算 (ノイズを加える)
-        const nextDirection = lastDirection.clone();
-        nextDirection.add(new THREE.Vector3(
-            (Math.random() - 0.5) * noiseScale,
-            (Math.random() - 0.5) * noiseScale * 0.5, // Y方向の変化を小さく
-            (Math.random() - 0.5) * noiseScale
-        )).normalize();
-
-        // 次のポイントを計算
-        const nextPoint = lastPoint.clone().add(nextDirection.clone().multiplyScalar(length));
-
-        this.points.push(nextPoint);
-        this.directions.push(nextDirection);
-
-        // 枝を分岐させるか？
-        if (this.currentDepth > 0 && Math.random() < branchProbability && this.children.length < maxBranches) {
-            const branchAngle = (Math.random() - 0.5) * Math.PI / 2; // -90度 ~ +90度
-            const branchDirection = nextDirection.clone().applyAxisAngle(
-                new THREE.Vector3(Math.random(), 0, Math.random()).normalize(),
-                branchAngle
-            ).normalize();
-
-            const branchPath = new TreePath(nextPoint, branchDirection, this.maxDepth, this.currentDepth + 1);
-            this.children.push(branchPath);
-        }
-
-        // 子パスも成長させる
-        for (const child of this.children) {
-            child.growSegment(length * 0.7, noiseScale * 0.8, branchProbability * 0.8, maxBranches);
-        }
-    }
-
-    getAllPoints() {
-        let allPoints = [...this.points];
-        for (const child of this.children) {
-            allPoints = allPoints.concat(child.getAllPoints());
-        }
-        return allPoints;
-    }
-}
+// --- 追加: 簡易的なノイズ関数 (Math.random の代わりに使用可能) ---
+// Perlin Noise や Simplex Noise は外部ライブラリが必要なので、ここでは簡易的な実装
+// function pseudoRandomNoise(x, y, z, seed = 0) {
+//     // 例: 乱数シードを含めたハッシュ関数 (完全なノイズではないが、一貫性のある疑似乱数)
+//     // 実装は複雑になるため、ここでは Math.random に依存
+//     // 代わりに、生成前にシードを固定する方法もある
+// }
 // --- 追加 ここまで ---
 
 export class Tree {
@@ -71,200 +22,162 @@ export class Tree {
         const numTrees = Math.floor(Math.random() * 32) + 1;
 
         for (let i = 0; i < numTrees; i++) {
+            // チャンク内のランダムな位置を計算
             const localX = Math.random() * chunkSize;
             const localZ = Math.random() * chunkSize;
 
             const worldX = cx * chunkSize + localX;
             const worldZ = cz * chunkSize + localZ;
 
+            // 地形の高さを取得
             const terrainHeight = this.world.getWorldTerrainHeightAt(worldX, worldZ);
 
-            // --- 修正: 高度な木構造を生成 ---
-            const treeGroup = this.createAdvancedTree(terrainHeight);
+            // --- 修正: より複雑な木構造を生成 ---
+            const treeGroup = this.createComplexTree(terrainHeight);
             // --- 修正 ここまで ---
 
+            // チャンクのローカル座標系に変換
             treeGroup.position.set(
                 localX - chunkSize / 2,
                 terrainHeight,
                 localZ - chunkSize / 2
             );
 
+            // チャンクに追加
             this.world.addTreeToChunk(cx, cy, cz, treeGroup);
         }
     }
 
-    // --- 追加: 高度な木構造を生成するメソッド ---
-    createAdvancedTree(groundY) {
+    // --- 追加: 複雑な木構造を生成するメソッド ---
+    createComplexTree(groundY) {
         const treeGroup = new THREE.Group();
 
-        // 木のパラメータ (ランダム性を追加)
-        const treeHeight = 4 + Math.random() * 6; // 4.0 から 10.0
-        const trunkRadius = 0.2 + Math.random() * 0.2; // 0.2 から 0.4
-        const trunkRadiusTop = trunkRadius * (0.3 + Math.random() * 0.2); // 先端は細く
-        const segments = 32;
+        // 木全体のパラメータ (ランダム性を追加)
+        const treeHeight = 3 + Math.random() * 4; // 3.0 から 7.0
+        const trunkBaseRadius = 0.15 + Math.random() * 0.1; // 0.15 から 0.25
+        const trunkSegments = 8;
 
-        // --- 幹のパスを生成 ---
-        const trunkStartPoint = new THREE.Vector3(0, groundY, 0);
-        const trunkStartDirection = new THREE.Vector3(0, 1, 0);
-        const trunkPath = new TreePath(trunkStartPoint, trunkStartDirection, 3); // 3段階の深さまで
-        trunkPath.growSegment(treeHeight / 3, 0.1, 0.1, 2); // 長さ、ノイズスケール、分岐確率、最大分岐数
+        // --- 幹の生成 (曲がる可能性あり) ---
+        const trunkCurvePoints = [];
+        const trunkRadiusPoints = [];
+        let currentY = groundY;
+        let currentRadius = trunkBaseRadius;
+        let currentDirection = new THREE.Vector3(0, 1, 0); // 初期方向: 上
 
-        // --- 幹のジオメトリを生成 (TubeGeometry 使用) ---
-        const trunkCurve = new THREE.CatmullRomCurve3(trunkPath.getAllPoints());
-        const trunkShape = this.createTaperedShape(trunkRadius, trunkRadiusTop); // 太さが変化するシェイプ
+        for (let y = 0; y < treeHeight; y += 0.5) { // 0.5 単位でポイントを打つ
+            trunkCurvePoints.push(new THREE.Vector3(0, currentY, 0)); // XZは0から始める
+            trunkRadiusPoints.push(currentRadius);
 
-        // 木の質感に合わせたマテリアル
-        const trunkMaterial = this.createBarkMaterial();
+            // 次のポイントの方向をランダムに変える (曲がる)
+            const angleVariation = (Math.random() - 0.5) * 0.2; // 小さな角度変化
+            const twistVariation = (Math.random() - 0.5) * 0.1; // 扭れ
+            const nextDirection = currentDirection.clone().applyAxisAngle(new THREE.Vector3(0,1,0), twistVariation).applyAxisAngle(new THREE.Vector3(1,0,0).cross(currentDirection), angleVariation).normalize();
+            currentDirection.copy(nextDirection);
 
-        const trunkGeometry = new THREE.TubeGeometry(
-            trunkCurve,
-            segments,  // pathSegments
-            1,         // radius (シェイプで制御)
-            8,         // radialSegments
-            false      // closed
-        );
-        // シェイプを適用
-        this.applyShapeToTubeGeometry(trunkGeometry, trunkShape, trunkRadius, trunkRadiusTop);
+            // Yを進める
+            currentY += currentDirection.y * 0.5;
+            // 半径を減らす (上に行くほど細く)
+            currentRadius = trunkBaseRadius * (1 - (y / treeHeight) * 0.7); // 最大で30%細く
+        }
 
-        const trunkMesh = new THREE.Mesh(trunkGeometry, trunkMaterial);
-        treeGroup.add(trunkMesh);
+        // 幹のジオメトリを生成 (簡易的にPathとRadiusでTubeを生成)
+        // Three.js には直接的な 'Variable Radius Curve' メッシュ生成機能がないため、
+        // ここでは複数の円柱を連結して近似します。
+        // より高度な方法として、`THREE.TubeGeometry` にカスタムパスを与える方法もある
+        for (let j = 0; j < trunkCurvePoints.length - 1; j++) {
+            const p1 = trunkCurvePoints[j];
+            const p2 = trunkCurvePoints[j + 1];
+            const r1 = trunkRadiusPoints[j];
+            const r2 = trunkRadiusPoints[j + 1];
+
+            const segmentGeometry = new THREE.CapsuleGeometry(Math.min(r1, r2), p1.distanceTo(p2), 4, 8);
+            const segmentMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+            const segment = new THREE.Mesh(segmentGeometry, segmentMaterial);
+
+            // セグメントをp1からp2の方向に配置
+            const direction = new THREE.Vector3().subVectors(p2, p1).normalize();
+            const midpoint = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+            segment.position.copy(midpoint);
+
+            // セグメントの回転を方向に合わせる
+            const up = new THREE.Vector3(0, 1, 0);
+            const quaternion = new THREE.Quaternion().setFromUnitVectors(up, direction);
+            segment.quaternion.copy(quaternion);
+
+            treeGroup.add(segment);
+        }
 
         // --- 枝の生成 ---
-        this.addBranches(treeGroup, trunkPath, trunkRadiusTop, trunkMaterial);
+        const numBranches = Math.floor(Math.random() * 3) + 2; // 2~4本
+        for (let b = 0; b < numBranches; b++) {
+            // 幹の途中から枝を出す (上部ほど多い)
+            const branchStartRatio = 0.4 + Math.random() * 0.5; // 40% ~ 90% の高さ
+            const startIndex = Math.floor(branchStartRatio * (trunkCurvePoints.length - 1));
+            const branchStartPoint = trunkCurvePoints[startIndex];
+            const branchStartRadius = trunkRadiusPoints[startIndex];
 
-        // --- 葉っぱの塊を追加 ---
-        this.addFoliage(treeGroup, trunkPath);
+            // 枝の方向 (上方向から外側にそれる)
+            const branchDirection = new THREE.Vector3(
+                (Math.random() - 0.5) * 2,
+                Math.random() * 0.5 + 0.5, // 上方向成分を保つ
+                (Math.random() - 0.5) * 2
+            ).normalize();
+
+            // 枝の長さと太さ
+            const branchLength = 0.5 + Math.random() * 1.5;
+            const branchRadius = branchStartRadius * (0.3 + Math.random() * 0.3); // 30~60% の太さ
+
+            // 枝のジオメトリ (Capsuleで近似)
+            const branchGeometry = new THREE.CapsuleGeometry(branchRadius, branchLength, 4, 8);
+            const branchMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+            const branch = new THREE.Mesh(branchGeometry, branchMaterial);
+
+            // 枝の位置と回転
+            branch.position.copy(branchStartPoint);
+            const up = new THREE.Vector3(0, 1, 0);
+            const quaternion = new THREE.Quaternion().setFromUnitVectors(up, branchDirection);
+            branch.quaternion.copy(quaternion);
+            // 長さ分だけ先に移動
+            branch.position.add(branchDirection.clone().multiplyScalar(branchLength / 2));
+
+            treeGroup.add(branch);
+
+            // 枝の先端に葉っぱの塊を追加
+            this.addFoliageCluster(treeGroup, branch.position, 0.8 + Math.random() * 0.5); // 半径にランダム性
+        }
+
+        // 幹の上部にも葉っぱの塊を追加
+        const topPoint = trunkCurvePoints[trunkCurvePoints.length - 1];
+        this.addFoliageCluster(treeGroup, topPoint, 1.0 + Math.random() * 0.8);
 
         return treeGroup;
     }
 
-    // --- 追加: 太さが変化するシェイプを作成 ---
-    createTaperedShape(startRadius, endRadius) {
-        const shape = new THREE.Shape();
-        const detail = 8; // 円の詳細度
-        for (let i = 0; i <= detail; i++) {
-            const angle = (i / detail) * Math.PI * 2;
-            const radius = startRadius + (endRadius - startRadius) * (i / detail);
-            const x = Math.cos(angle) * radius;
-            const y = Math.sin(angle) * radius;
-            if (i === 0) {
-                shape.moveTo(x, y);
-            } else {
-                shape.lineTo(x, y);
-            }
-        }
-        return shape;
-    }
+    // --- 追加: 葉っぱの塊を追加するヘルパーメソッド ---
+    addFoliageCluster(parentGroup, position, radius) {
+        const numFoliage = Math.floor(radius * 10) + 5; // 半径に応じた量
 
-    // --- 追加: TubeGeometry にシェイプを適用 (簡易版) ---
-    // NOTE: TubeGeometry は直接シェイプを適用するプロパティがないため、
-    //       各セグメントの半径を変えることで近似します。
-    //       より正確には、BufferGeometry を直接編集する必要があります。
-    applyShapeToTubeGeometry(geometry, shape, startRadius, endRadius) {
-        // 現在の実装では、TubeGeometry 自体の頂点を直接操作して半径を変えることはしません。
-        // 代わりに、createTaperedShape を使用して Curve3 から生成する際に、
-        // 各ポイントでの半径を計算して Curve3 上のスケールとして扱う方法があります。
-        // ここでは、主に `startRadius` と `endRadius` を `TubeGeometry` のコンストラクタに
-        // 直接渡すのではなく、`createTaperedShape` で生成された形状を元に、
-        // `TubeGeometry` の `radius` パラメータを各ポイントで変化させる BufferGeometry の編集が必要ですが、
-        // それは非常に複雑です。
-        // 簡略化のため、`TubeGeometry` の `radius` は固定し、シェイプのサイズで調整します。
-        // または、`ExtrudeGeometry` を使用して、パスに沿ってシェイプを押し出す方法もあります。
-        // ここでは、`TubeGeometry` を使用しつつ、`startRadius` と `endRadius` を
-        // `createTaperedShape` 内で反映させたものを使用します。
-        // つまり、この関数は現在の実装ではプレースホルダーです。
-        // `TubeGeometry` の `radius` は 1 に固定し、`createTaperedShape` で定義された
-        // `Shape` のスケールが `TubeGeometry` の太さになります。
-    }
+        for (let f = 0; f < numFoliage; f++) {
+            // 葉っぱの塊を構成する個々の葉
+            const leafGeometry = new THREE.SphereGeometry(0.15 + Math.random() * 0.1, 6, 6); // サイズにランダム性
+            const leafMaterial = new THREE.MeshStandardMaterial({
+                color: new THREE.Color().setHSL(0.3 + Math.random() * 0.1, 0.8, 0.4 + Math.random() * 0.2), // 色にランダム性 (緑系)
+                transparent: true,
+                opacity: 0.9
+            });
 
-    // --- 追加: 木の幹用マテリアルを作成 ---
-    createBarkMaterial() {
-        // 色のグラデーションとノイズを含むマテリアル
-        const material = new THREE.MeshStandardMaterial({
-            color: 0x8B4513, // 基本の茶色
-            roughness: 0.9,
-            metalness: 0.1,
-            // マップ (例: テクスチャ) を使用する場合は以下を設定
-            // map: texture,
-            // 法線マップやラフネスマップも同様
-        });
+            const leaf = new THREE.Mesh(leafGeometry, leafMaterial);
 
-        // シェーダーで色を動的に変更する例 (グラデーション)
-        // これは、Geometry の頂点のY座標に基づいてマテリアルの色を変える
-        // Custom ShaderMaterial を使用する必要があるため、ここでは MeshStandardMaterial に留める
-        // 代わりに、頂点カラーを Geometry に追加する方法もある
-        return material;
-    }
+            // 親の位置から半径内にランダム配置
+            const offset = new THREE.Vector3(
+                (Math.random() - 0.5) * 2,
+                (Math.random() - 0.5) * 2,
+                (Math.random() - 0.5) * 2
+            ).normalize().multiplyScalar(Math.random() * radius);
 
-    // --- 追加: 枝を追加 ---
-    addBranches(parentGroup, trunkPath, trunkRadiusTop, trunkMaterial) {
-        // trunkPath から、途中のポイントを選んで枝を生やす
-        const branchPoints = trunkPath.getAllPoints();
-        for (let i = Math.floor(branchPoints.length * 0.3); i < branchPoints.length * 0.8; i++) { // 下から30%~80%の高さに枝
-            if (Math.random() < 0.3) { // 30%の確率で枝を追加
-                const startPoint = branchPoints[i];
-                const nextPoint = branchPoints[i + 1] || startPoint.clone().add(new THREE.Vector3(0, 0.5, 0).normalize()); // 次の点がない場合のフォールバック
-                const direction = new THREE.Vector3().subVectors(nextPoint, startPoint).normalize();
+            leaf.position.copy(position).add(offset);
 
-                // 枝の方向を幹の方向から少し外す
-                const branchDirection = direction.clone().applyAxisAngle(
-                    new THREE.Vector3(Math.random(), 0, Math.random()).normalize(),
-                    (Math.random() - 0.5) * Math.PI / 2
-                ).normalize();
-
-                // 枝の長さと太さ
-                const branchLength = 0.5 + Math.random() * 1.5;
-                const branchRadius = trunkRadiusTop * (0.3 + Math.random() * 0.3);
-
-                // 枝のパスを生成
-                const branchStartPoint = startPoint.clone();
-                const branchPath = new TreePath(branchStartPoint, branchDirection, 2); // 2段階の深さ
-                branchPath.growSegment(branchLength / 2, 0.2, 0.2, 1);
-
-                // 枝のジオメトリ
-                const branchCurve = new THREE.CatmullRomCurve3(branchPath.getAllPoints());
-                const branchShape = this.createTaperedShape(trunkRadiusTop * 0.7, branchRadius); // 枝は幹より細く始まる
-
-                const branchGeometry = new THREE.TubeGeometry(
-                    branchCurve,
-                    16, 8, 8, false
-                );
-                // シェイプを適用 (簡略化されている点に注意)
-                const branchMesh = new THREE.Mesh(branchGeometry, trunkMaterial); // 枝も幹と同じマテリアルを使用
-                parentGroup.add(branchMesh);
-
-                // 枝にも葉っぱを追加 (再帰的に呼び出すか、個別の処理)
-                this.addFoliage(parentGroup, branchPath);
-            }
-        }
-    }
-
-    // --- 追加: 葉っぱを追加 ---
-    addFoliage(parentGroup, treePath) {
-        const allPoints = treePath.getAllPoints();
-        // 上位30%のポイントに葉っぱを追加
-        const foliageStartIndex = Math.floor(allPoints.length * 0.7);
-
-        for (let i = foliageStartIndex; i < allPoints.length; i++) {
-            if (Math.random() < 0.5) { // 50%の確率で葉っぱの塊を追加
-                const point = allPoints[i];
-
-                // 葉っぱの塊のジオメトリとマテリアル
-                const clusterGeometry = new THREE.SphereGeometry(0.5 + Math.random() * 0.5, 8, 8);
-                const clusterMaterial = new THREE.MeshStandardMaterial({
-                    color: new THREE.Color().setHSL(0.3 + Math.random() * 0.1, 0.8, 0.4 + Math.random() * 0.2), // 色にランダム性
-                    roughness: 0.8,
-                    metalness: 0.0,
-                    side: THREE.DoubleSide // 葉っぱを両面表示
-                });
-
-                const cluster = new THREE.Mesh(clusterGeometry, clusterMaterial);
-                cluster.position.copy(point);
-                // 葉っぱの塊を少し浮かせる
-                cluster.position.y += 0.2 + Math.random() * 0.3;
-
-                parentGroup.add(cluster);
-            }
+            parentGroup.add(leaf);
         }
     }
     // --- 追加 ここまで ---
