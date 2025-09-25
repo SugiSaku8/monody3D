@@ -22,21 +22,22 @@ export class Game {
         // Set up renderer
         this.setupRenderer();
 
-        // Set up event listeners (キー入力は Player が処理)
+        // Set up event listeners
         this.setupEventListeners();
 
-        // --- 追加: FPS計算用の変数 ---
-        this.frameCount = 0;
-        this.lastFpsUpdate = performance.now(); // 高精度タイマーを使用
-        this.currentFps = 0;
+        // --- 追加: ゲーム内時間関連 ---
+        this.gameTime = 0; // ゲーム内時間 (秒)
+        this.gameTimeSpeed = (24 * 60 * 60) / (33 * 60); // 33分(real) = 24時間(game) -> 1秒(real) = 24*3600/33*60 秒(game)
         // --- 追加 ここまで ---
 
-        // --- 追加: FPS表示用のDOM要素を取得 ---
-        this.fpsElement = document.getElementById('fpsCounter'); // index.html に <div id="fpsCounter">FPS: 0</div> などを追加
+        // FPS計算用変数など
+        this.frameCount = 0;
+        this.lastFpsUpdate = performance.now();
+        this.currentFps = 0;
+        this.fpsElement = document.getElementById('fpsCounter');
         if (!this.fpsElement) {
              console.warn("FPS counter element (id='fpsCounter') not found in HTML. Please add it to display FPS.");
         }
-        // --- 追加 ここまで ---
 
         // Start game loop
         this.animate();
@@ -45,7 +46,8 @@ export class Game {
     setupRenderer() {
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.enabled = true; // シャドウマップ有効化
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap; // ソフトシャドウ
         document.getElementById('canvasWrapper').appendChild(this.renderer.domElement);
     }
 
@@ -64,14 +66,18 @@ export class Game {
 
         const delta = this.clock.getDelta();
 
+        // --- 追加: ゲーム内時間を更新 ---
+        this.gameTime += delta * this.gameTimeSpeed;
+        // --- 追加 ここまで ---
+
         // Update physics
         this.world.updatePhysics(delta);
 
         // Update player
         this.player.update(delta);
 
-        // Update world (chunk loading/unloading)
-        this.world.update(this.player.position);
+        // Update world (chunk loading/unloading, 太陽更新)
+        this.world.update(this.player.position, this.gameTime); // gameTime を渡す
 
         // Update UI
         this.uiManager.update(this.player);
@@ -79,21 +85,19 @@ export class Game {
         // Render scene
         this.renderer.render(this.scene, this.player.camera);
 
-        // --- 追加: FPS計算と表示 ---
+        // FPS計算と表示
         this.frameCount++;
         const now = performance.now();
         const deltaMs = now - this.lastFpsUpdate;
 
-        if (deltaMs >= 1000) { // 1秒経過したらFPSを計算
+        if (deltaMs >= 1000) {
             this.currentFps = Math.round((this.frameCount * 1000) / deltaMs);
             this.frameCount = 0;
             this.lastFpsUpdate = now;
 
-            // FPSをHTML要素に表示
             if (this.fpsElement) {
                 this.fpsElement.textContent = `FPS: ${this.currentFps}`;
             }
         }
-        // --- 追加 ここまで ---
     }
 }

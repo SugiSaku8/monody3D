@@ -3,9 +3,7 @@ import * as THREE from 'three';
 import { Chunk } from './Chunk.js';
 import { BiomeManager } from '../biomes/BiomeManager.js';
 import { PhysicsWorld } from '../physics/PhysicsWorld.js';
-// --- 追加: WorldGenerator をインポート ---
 import { WorldGenerator } from '../worldgen/WorldGenerator.js';
-// --- 追加 ここまで ---
 
 export class World {
     constructor(scene) {
@@ -23,67 +21,43 @@ export class World {
         // Set up lighting
         this.setupLighting();
 
-        // --- 追加: WorldGenerator を初期化 ---
+        // WorldGenerator を初期化
         this.worldGenerator = new WorldGenerator(this, this.biomeManager, this.physicsWorld);
+
+        // --- 追加: 太陽 (DirectionalLight) ---
+        this.sunLight = new THREE.DirectionalLight(0xffffff, 1); // 初期色と強度
+        this.sunLight.position.set(100, 100, 100); // 初期位置
+        this.sunLight.castShadow = true;
+
+        // シャドウマップの設定 (影をリアルに)
+        this.sunLight.shadow.mapSize.width = 2048;
+        this.sunLight.shadow.mapSize.height = 2048;
+        this.sunLight.shadow.camera.near = 0.5;
+        this.sunLight.shadow.camera.far = 500;
+        this.sunLight.shadow.camera.left = -100;
+        this.sunLight.shadow.camera.right = 100;
+        this.sunLight.shadow.camera.top = 100;
+        this.sunLight.shadow.camera.bottom = -100;
+        // ソフトシャドウ
+        this.sunLight.shadow.radius = 4; // これもrendererの設定と合わせる
+
+        this.scene.add(this.sunLight);
         // --- 追加 ここまで ---
     }
+
+    // --- 修正: setupLighting で環境光のみに変更 (太陽がメイン照明) ---
+    setupLighting() {
+        // Ambient light (夜の暗さを調整)
+        this.ambientLight = new THREE.AmbientLight(0x404040, 0.2); // 初期強度
+        this.scene.add(this.ambientLight);
+
+        // Directional light (太陽) はコンストラクタで追加
+    }
+    // --- 修正 ここまで ---
 
     // ... (他のメソッドは変更なし) ...
 
-    setupLighting() {
-        // Ambient light
-        const ambientLight = new THREE.AmbientLight(0x404040);
-        this.scene.add(ambientLight);
-
-        // Directional light (sun)
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-        directionalLight.position.set(1, 1, 1).normalize();
-        directionalLight.castShadow = true;
-        this.scene.add(directionalLight);
-    }
-
-    getChunkKey(x, y, z) {
-        return `${x},${y},${z}`;
-    }
-
-    getChunkAt(x, y, z) {
-        const key = this.getChunkKey(x, y, z);
-        return this.chunks.get(key) || null;
-    }
-
-    loadChunk(x, y, z) {
-        const key = this.getChunkKey(x, y, z);
-
-        if (this.chunks.has(key)) {
-            return this.chunks.get(key);
-        }
-
-        // biomeManager と physicsWorld を渡す (必要に応じて、Y=0以外のチャンクに物理コライダーがある場合)
-        const chunk = new Chunk(x, y, z, this.CHUNK_SIZE, this.biomeManager, this.physicsWorld);
-        this.chunks.set(key, chunk);
-        this.scene.add(chunk.mesh);
-
-        // --- 追加: チャンクロード時に WorldGenerator で Feature を生成 ---
-        if (y === 0) { // 例として Y=0 のチャンクのみに限定
-            this.worldGenerator.generateFeaturesInChunk(x, y, z, this.CHUNK_SIZE);
-        }
-        // --- 追加 ここまで ---
-
-        return chunk;
-    }
-
-    unloadChunk(x, y, z) {
-        const key = this.getChunkKey(x, y, z);
-        const chunk = this.chunks.get(key);
-
-        if (chunk) {
-            this.scene.remove(chunk.mesh);
-            chunk.dispose();
-            this.chunks.delete(key);
-        }
-    }
-
-    update(playerPosition) {
+    update(playerPosition, gameTime) { // gameTime を引数に追加
         // Get player's chunk coordinates
         const playerChunkX = Math.floor(playerPosition.x / this.CHUNK_SIZE);
         const playerChunkY = Math.floor(playerPosition.y / this.CHUNK_SIZE);
@@ -99,12 +73,10 @@ export class World {
                     const cy = playerChunkY + dy;
                     const cz = playerChunkZ + dz;
 
-                    // --- 修正: Y=0 のチャンクのみロード ---
                     if (cy === 0) {
                         chunksToLoad.add(this.getChunkKey(cx, cy, cz));
                         this.loadChunk(cx, cy, cz);
                     }
-                    // --- 修正 ここまで ---
                 }
             }
         }
@@ -117,18 +89,68 @@ export class World {
             }
         }
 
-        // --- 追加: グリッド単位の Feature (例: City) を生成 ---
+        // Grid-based features
         this.worldGenerator.generateGridBasedFeatures(playerPosition);
+
+        // --- 追加: 太陽の位置と色を更新 ---
+        this.updateSun(gameTime);
         // --- 追加 ここまで ---
     }
 
+    // --- 追加: 太陽の位置と色をゲーム内時間に基づいて更新 ---
+    updateSun(gameTime) {
+        const gameHours = (gameTime / 3600) % 24; // 0-24のゲーム時刻
+        const sunAngle = (gameHours / 24) * Math.PI * 2 - Math.PI / 2; // 0時が下、6時が真横、12時が上、18時が反対側
+
+        // 太陽の位置を計算 (Y軸を中心に回転)
+        const sunDistance = 200; // 太陽の距離 (遠くにすると平行光線に近くなる)
+        const sunX = Math.cos(sunAngle) * sunDistance;
+        const sunY = Math.sin(sunAngle) * sunDistance; // Yが高さ
+        const sunZ = Math.sin(sunAngle) * sunDistance * 0.5; // Zも少し動かすと昼夜のメリハリがでる
+
+        this.sunLight.position.set(sunX, sunY, sunZ);
+
+        // 太陽の色と強度を計算 (簡易的な朝焼け・夕焼け、夜)
+        let sunColor = new THREE.Color(0xffffff); // デフォルト (昼)
+        let sunIntensity = 1.0;
+        let ambientIntensity = 0.2;
+
+        if (gameHours >= 5.5 && gameHours < 6.5) { // 朝焼け (5:30 - 6:30)
+            // 色をオレンジに近づける
+            sunColor = new THREE.Color().lerpColors(new THREE.Color(0x404080), new THREE.Color(0xffaa33), (gameHours - 5.5) / 1.0);
+            sunIntensity = 0.5 + (gameHours - 5.5) * 0.5; // 徐々に明るく
+            ambientIntensity = 0.1 + (gameHours - 5.5) * 0.1;
+        } else if (gameHours >= 6.5 && gameHours < 17.5) { // 昼 (6:30 - 17:30)
+            sunColor = new THREE.Color(0xffffff);
+            sunIntensity = 1.0;
+            ambientIntensity = 0.2;
+        } else if (gameHours >= 17.5 && gameHours < 18.5) { // 夕焼け (17:30 - 18:30)
+            // 色をオレンジに近づける
+            sunColor = new THREE.Color().lerpColors(new THREE.Color(0xffaa33), new THREE.Color(0x404080), (gameHours - 17.5) / 1.0);
+            sunIntensity = 1.0 - (gameHours - 17.5) * 0.5; // 徐々に暗く
+            ambientIntensity = 0.2 - (gameHours - 17.5) * 0.1;
+        } else { // 夜 (18:30 - 5:30)
+            sunColor = new THREE.Color(0x404080); // 暗い青
+            sunIntensity = 0.1; // 薄暗い光
+            ambientIntensity = 0.05;
+        }
+
+        // 太陽の色と強度を適用
+        this.sunLight.color.copy(sunColor);
+        this.sunLight.intensity = sunIntensity;
+
+        // 環境光の強度も調整 (夜を暗くする)
+        this.ambientLight.intensity = ambientIntensity;
+    }
+    // --- 追加 ここまで ---
+
+    // ... (他のメソッドは変更なし) ...
+
     getWorldTerrainHeightAt(x, z) {
-        // biomeManager を使用して高さを取得
-        // これは、Chunk.js の Heightfield が機能しない場合のフォールバック
-        return this.biomeManager.getBiomeAt(x, z).getHeight(x, z);
+        const biome = this.biomeManager.getBiomeAt(x, z);
+        return biome.getHeight(x, z);
     }
 
-    // --- 追加: WorldGenerator から呼び出される、Chunk にオブジェクトを追加するメソッド ---
     addTreeToChunk(cx, cy, cz, treeMesh) {
         const chunkKey = this.getChunkKey(cx, cy, cz);
         const chunk = this.chunks.get(chunkKey);
@@ -138,9 +160,7 @@ export class World {
             console.warn(`Chunk (${cx}, ${cy}, ${cz}) not found when adding tree.`);
         }
     }
-    // --- 追加 ここまで ---
 
-    // 物理ワールドを更新するメソッド
     updatePhysics(deltaTime) {
         this.physicsWorld.update(deltaTime);
     }
