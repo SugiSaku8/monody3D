@@ -122,12 +122,11 @@ export class World {
         // --- 追加 ここまで ---
     }
 
-    // --- 修正: 古い getTerrainHeightAt を削除またはコメントアウト ---
-    // getTerrainHeightAt(x, z) {
-    //     const biome = this.biomeManager.getBiomeAt(x, z);
-    //     return biome.getHeight(x, z);
-    // }
-    // --- 修正 ここまで ---
+    getWorldTerrainHeightAt(x, z) {
+        // biomeManager を使用して高さを取得
+        // これは、Chunk.js の Heightfield が機能しない場合のフォールバック
+        return this.biomeManager.getBiomeAt(x, z).getHeight(x, z);
+    }
 
     // --- 追加: WorldGenerator から呼び出される、Chunk にオブジェクトを追加するメソッド ---
     addTreeToChunk(cx, cy, cz, treeMesh) {
