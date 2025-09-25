@@ -1,184 +1,235 @@
 // js/modules/worldgen/features/Tree.js
 import * as THREE from 'three';
 
-// --- 追加: 簡易的なノイズ関数 (Math.random の代わりに使用可能) ---
-// Perlin Noise や Simplex Noise は外部ライブラリが必要なので、ここでは簡易的な実装
-// function pseudoRandomNoise(x, y, z, seed = 0) {
-//     // 例: 乱数シードを含めたハッシュ関数 (完全なノイズではないが、一貫性のある疑似乱数)
-//     // 実装は複雑になるため、ここでは Math.random に依存
-//     // 代わりに、生成前にシードを固定する方法もある
-// }
-// --- 追加 ここまで ---
-
 export class Tree {
     constructor(world, biomeManager, physicsWorld) {
         this.world = world;
         this.biomeManager = biomeManager;
         this.physicsWorld = physicsWorld;
+        // --- 追加: 葉っぱのインスタンシング用ジオメトリとマテリアルを事前生成 ---
+        this.leafGeometry = new THREE.PlaneGeometry(0.15, 0.15); // 平面ジオメトリ (葉っぱの形状)
+        this.leafMaterial = new THREE.MeshStandardMaterial({
+            color: new THREE.Color().setHSL(0.3, 0.8, 0.4), // デフォルトの緑
+            roughness: 0.9,
+            metalness: 0.0,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.9,
+            wireframe: false
+        });
+        // --- 追加 ここまで ---
     }
 
     generateInChunk(cx, cy, cz, chunkSize) {
-        // 1チャンクにランダム1~32個生成
         const numTrees = Math.floor(Math.random() * 32) + 1;
 
         for (let i = 0; i < numTrees; i++) {
-            // チャンク内のランダムな位置を計算
             const localX = Math.random() * chunkSize;
             const localZ = Math.random() * chunkSize;
 
             const worldX = cx * chunkSize + localX;
             const worldZ = cz * chunkSize + localZ;
 
-            // 地形の高さを取得
             const terrainHeight = this.world.getWorldTerrainHeightAt(worldX, worldZ);
 
-            // --- 修正: より複雑な木構造を生成 ---
-            const treeGroup = this.createComplexTree(terrainHeight);
+            // --- 修正: インスタンシング版の木構造を生成 ---
+            const treeGroup = this.createOptimizedTree(terrainHeight);
             // --- 修正 ここまで ---
 
-            // チャンクのローカル座標系に変換
             treeGroup.position.set(
                 localX - chunkSize / 2,
                 terrainHeight,
                 localZ - chunkSize / 2
             );
 
-            // チャンクに追加
             this.world.addTreeToChunk(cx, cy, cz, treeGroup);
         }
     }
 
-    // --- 追加: 複雑な木構造を生成するメソッド ---
-    createComplexTree(groundY) {
+    // --- 修正: メソッド名を変更して、最適化版であることを示す ---
+    createOptimizedTree(groundY) {
         const treeGroup = new THREE.Group();
 
-        // 木全体のパラメータ (ランダム性を追加)
-        const treeHeight = 3 + Math.random() * 4; // 3.0 から 7.0
-        const trunkBaseRadius = 0.15 + Math.random() * 0.1; // 0.15 から 0.25
-        const trunkSegments = 8;
+        // 木の全体的なパラメータ
+        const treeHeight = 4 + Math.random() * 3; // 4.0 から 7.0
+        const trunkHeight = treeHeight * (0.4 + Math.random() * 0.2); // 幹の高さ: 全体の40~60%
+        const trunkRadius = 0.15 + Math.random() * 0.1; // 幹の太さ
+        const numBranches = 3 + Math.floor(Math.random() * 3); // 枝の数: 3~5
 
-        // --- 幹の生成 (曲がる可能性あり) ---
-        const trunkCurvePoints = [];
-        const trunkRadiusPoints = [];
-        let currentY = groundY;
-        let currentRadius = trunkBaseRadius;
-        let currentDirection = new THREE.Vector3(0, 1, 0); // 初期方向: 上
-
-        for (let y = 0; y < treeHeight; y += 0.5) { // 0.5 単位でポイントを打つ
-            trunkCurvePoints.push(new THREE.Vector3(0, currentY, 0)); // XZは0から始める
-            trunkRadiusPoints.push(currentRadius);
-
-            // 次のポイントの方向をランダムに変える (曲がる)
-            const angleVariation = (Math.random() - 0.5) * 0.2; // 小さな角度変化
-            const twistVariation = (Math.random() - 0.5) * 0.1; // 扭れ
-            const nextDirection = currentDirection.clone().applyAxisAngle(new THREE.Vector3(0,1,0), twistVariation).applyAxisAngle(new THREE.Vector3(1,0,0).cross(currentDirection), angleVariation).normalize();
-            currentDirection.copy(nextDirection);
-
-            // Yを進める
-            currentY += currentDirection.y * 0.5;
-            // 半径を減らす (上に行くほど細く)
-            currentRadius = trunkBaseRadius * (1 - (y / treeHeight) * 0.7); // 最大で30%細く
-        }
-
-        // 幹のジオメトリを生成 (簡易的にPathとRadiusでTubeを生成)
-        // Three.js には直接的な 'Variable Radius Curve' メッシュ生成機能がないため、
-        // ここでは複数の円柱を連結して近似します。
-        // より高度な方法として、`THREE.TubeGeometry` にカスタムパスを与える方法もある
-        for (let j = 0; j < trunkCurvePoints.length - 1; j++) {
-            const p1 = trunkCurvePoints[j];
-            const p2 = trunkCurvePoints[j + 1];
-            const r1 = trunkRadiusPoints[j];
-            const r2 = trunkRadiusPoints[j + 1];
-
-            const segmentGeometry = new THREE.CapsuleGeometry(Math.min(r1, r2), p1.distanceTo(p2), 4, 8);
-            const segmentMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
-            const segment = new THREE.Mesh(segmentGeometry, segmentMaterial);
-
-            // セグメントをp1からp2の方向に配置
-            const direction = new THREE.Vector3().subVectors(p2, p1).normalize();
-            const midpoint = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
-            segment.position.copy(midpoint);
-
-            // セグメントの回転を方向に合わせる
-            const up = new THREE.Vector3(0, 1, 0);
-            const quaternion = new THREE.Quaternion().setFromUnitVectors(up, direction);
-            segment.quaternion.copy(quaternion);
-
-            treeGroup.add(segment);
-        }
+        // --- 幹の生成 ---
+        const trunkGeometry = new THREE.CylinderGeometry(trunkRadius * 0.8, trunkRadius, trunkHeight, 8);
+        const trunkMaterial = new THREE.MeshStandardMaterial({
+            color: this.getTrunkColor(),
+            roughness: 0.9,
+            metalness: 0.1
+        });
+        const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+        trunk.position.y = trunkHeight / 2;
+        treeGroup.add(trunk);
 
         // --- 枝の生成 ---
-        const numBranches = Math.floor(Math.random() * 3) + 2; // 2~4本
-        for (let b = 0; b < numBranches; b++) {
-            // 幹の途中から枝を出す (上部ほど多い)
-            const branchStartRatio = 0.4 + Math.random() * 0.5; // 40% ~ 90% の高さ
-            const startIndex = Math.floor(branchStartRatio * (trunkCurvePoints.length - 1));
-            const branchStartPoint = trunkCurvePoints[startIndex];
-            const branchStartRadius = trunkRadiusPoints[startIndex];
+        for (let i = 0; i < numBranches; i++) {
+            const branchStartHeightRatio = 0.2 + Math.random() * 0.6;
+            const branchStartY = trunkHeight * branchStartHeightRatio;
 
-            // 枝の方向 (上方向から外側にそれる)
+            const branchAngleXZ = Math.random() * Math.PI * 2;
+            const branchAngleY = Math.PI / 6 + Math.random() * Math.PI / 3; // 30-90度 (より水平寄り)
             const branchDirection = new THREE.Vector3(
-                (Math.random() - 0.5) * 2,
-                Math.random() * 0.5 + 0.5, // 上方向成分を保つ
-                (Math.random() - 0.5) * 2
+                Math.sin(branchAngleY) * Math.cos(branchAngleXZ),
+                Math.cos(branchAngleY),
+                Math.sin(branchAngleY) * Math.sin(branchAngleXZ)
             ).normalize();
 
-            // 枝の長さと太さ
-            const branchLength = 0.5 + Math.random() * 1.5;
-            const branchRadius = branchStartRadius * (0.3 + Math.random() * 0.3); // 30~60% の太さ
+            const branchLength = 1.0 + Math.random() * 1.5;
+            const branchRadius = trunkRadius * (0.3 + Math.random() * 0.2);
 
-            // 枝のジオメトリ (Capsuleで近似)
-            const branchGeometry = new THREE.CapsuleGeometry(branchRadius, branchLength, 4, 8);
-            const branchMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+            const branchGeometry = new THREE.CylinderGeometry(branchRadius, branchRadius, branchLength, 6);
+            const branchMaterial = trunkMaterial;
             const branch = new THREE.Mesh(branchGeometry, branchMaterial);
 
-            // 枝の位置と回転
-            branch.position.copy(branchStartPoint);
+            branch.position.set(0, branchStartY, 0);
             const up = new THREE.Vector3(0, 1, 0);
             const quaternion = new THREE.Quaternion().setFromUnitVectors(up, branchDirection);
             branch.quaternion.copy(quaternion);
-            // 長さ分だけ先に移動
             branch.position.add(branchDirection.clone().multiplyScalar(branchLength / 2));
 
             treeGroup.add(branch);
-
-            // 枝の先端に葉っぱの塊を追加
-            this.addFoliageCluster(treeGroup, branch.position, 0.8 + Math.random() * 0.5); // 半径にランダム性
         }
 
-        // 幹の上部にも葉っぱの塊を追加
-        const topPoint = trunkCurvePoints[trunkCurvePoints.length - 1];
-        this.addFoliageCluster(treeGroup, topPoint, 1.0 + Math.random() * 0.8);
+        // --- 葉っぱをインスタンシングで生成 ---
+        // 葉っぱの配置情報を計算 (事前計算)
+        const leafPositions = this.calculateLeafPositions(trunkHeight, trunkRadius, numBranches);
+        const numLeaves = leafPositions.length;
+
+        if (numLeaves > 0) {
+            // --- 修正: InstancedMesh を作成 ---
+            const instancedMesh = new THREE.InstancedMesh(this.leafGeometry, this.leafMaterial, numLeaves);
+
+            // 各インスタンスの変換行列を設定
+            const matrix = new THREE.Matrix4();
+            const color = new THREE.Color();
+            for (let i = 0; i < numLeaves; i++) {
+                const pos = leafPositions[i].position;
+                const rot = leafPositions[i].rotation;
+                const scl = leafPositions[i].scale;
+                const col = leafPositions[i].color;
+
+                matrix.compose(pos, new THREE.Quaternion().setFromEuler(rot), scl);
+                instancedMesh.setMatrixAt(i, matrix);
+                instancedMesh.setColorAt(i, col);
+            }
+
+            instancedMesh.instanceMatrix.needsUpdate = true;
+            if (instancedMesh.instanceColor) {
+                instancedMesh.instanceColor.needsUpdate = true;
+            }
+
+            treeGroup.add(instancedMesh);
+            // --- 修正 ここまで ---
+        }
 
         return treeGroup;
     }
 
-    // --- 追加: 葉っぱの塊を追加するヘルパーメソッド ---
-    addFoliageCluster(parentGroup, position, radius) {
-        const numFoliage = Math.floor(radius * 10) + 5; // 半径に応じた量
-
-        for (let f = 0; f < numFoliage; f++) {
-            // 葉っぱの塊を構成する個々の葉
-            const leafGeometry = new THREE.SphereGeometry(0.15 + Math.random() * 0.1, 6, 6); // サイズにランダム性
-            const leafMaterial = new THREE.MeshStandardMaterial({
-                color: new THREE.Color().setHSL(0.3 + Math.random() * 0.1, 0.8, 0.4 + Math.random() * 0.2), // 色にランダム性 (緑系)
-                transparent: true,
-                opacity: 0.9
-            });
-
-            const leaf = new THREE.Mesh(leafGeometry, leafMaterial);
-
-            // 親の位置から半径内にランダム配置
-            const offset = new THREE.Vector3(
-                (Math.random() - 0.5) * 2,
-                (Math.random() - 0.5) * 2,
-                (Math.random() - 0.5) * 2
-            ).normalize().multiplyScalar(Math.random() * radius);
-
-            leaf.position.copy(position).add(offset);
-
-            parentGroup.add(leaf);
-        }
+    getTrunkColor() {
+        const hue = 0.08 + Math.random() * 0.05;
+        const saturation = 0.4 + Math.random() * 0.2;
+        const lightness = 0.15 + Math.random() * 0.15;
+        return new THREE.Color().setHSL(hue, saturation, lightness);
     }
-    // --- 追加 ここまで ---
+
+    // --- 追加: 葉っぱの位置、回転、スケール、色を計算するメソッド ---
+    calculateLeafPositions(trunkHeight, trunkRadius, numBranches) {
+        const leafData = [];
+        const totalLeafCount = 200 + Math.floor(Math.random() * 300); // 1本の木に200~500枚の葉っぱ
+
+        // 木全体を覆う球状の空間を想定
+        const canopyRadius = 1.5 + trunkHeight * 0.3; // 樹冠の半径
+        const canopyCenterY = trunkHeight + canopyRadius * 0.3; // 樹冠の中心Y (やや上にずらす)
+
+        for (let i = 0; i < totalLeafCount; i++) {
+            // 球状に葉っぱのベース位置を生成
+            const u = Math.random();
+            const v = Math.random();
+            const theta = u * 2.0 * Math.PI;
+            const phi = Math.acos(2.0 * v - 1.0);
+            const r = Math.cbrt(Math.random()) * canopyRadius * (0.7 + Math.random() * 0.3); // 半径にランダム性
+            const sinTheta = Math.sin(theta);
+            const cosTheta = Math.cos(theta);
+            const sinPhi = Math.sin(phi);
+            const cosPhi = Math.cos(phi);
+
+            let baseX = r * sinPhi * cosTheta;
+            let baseY = r * sinPhi * sinTheta + canopyCenterY;
+            let baseZ = r * cosPhi;
+
+            // 幹や枝の近くは葉っぱを減らす (簡易的な回避)
+            const distToTrunk = Math.sqrt(baseX * baseX + (baseY - trunkHeight/2) * (baseY - trunkHeight/2) + baseZ * baseZ);
+            if (distToTrunk < trunkRadius * 2) continue; // 幹の近くを除外
+
+            let foundValidPos = false;
+            let attempts = 0;
+            let finalX, finalY, finalZ;
+            while (!foundValidPos && attempts < 10) { // 有効な位置が見つかるか、10回試行
+                // ベース位置に少しだけランダム性を加える
+                finalX = baseX + (Math.random() - 0.5) * 0.3;
+                finalY = baseY + (Math.random() - 0.5) * 0.3;
+                finalZ = baseZ + (Math.random() - 0.5) * 0.3;
+
+                // 枝の位置とも比較 (簡易版: 枝の中心からの距離で判定)
+                let tooCloseToBranch = false;
+                for (let b = 0; b < numBranches; b++) {
+                    // 枝の開始位置の計算 (createOptimizedTree と同様)
+                    const branchStartHeightRatio = 0.2 + Math.random() * 0.6;
+                    const branchStartY = trunkHeight * branchStartHeightRatio;
+                    const branchAngleXZ = Math.random() * Math.PI * 2;
+                    const branchAngleY = Math.PI / 6 + Math.random() * Math.PI / 3;
+                    const branchDirection = new THREE.Vector3(
+                        Math.sin(branchAngleY) * Math.cos(branchAngleXZ),
+                        Math.cos(branchAngleY),
+                        Math.sin(branchAngleY) * Math.sin(branchAngleXZ)
+                    ).normalize();
+                    const branchLength = 1.0 + Math.random() * 1.5;
+                    // 枝の中点を計算
+                    const branchMidpoint = new THREE.Vector3(0, branchStartY, 0)
+                        .add(branchDirection.clone().multiplyScalar(branchLength / 2));
+
+                    const distToBranch = new THREE.Vector3(finalX, finalY, finalZ).distanceTo(branchMidpoint);
+                    if (distToBranch < 0.5) { // 枝の中心から0.5以内は除外
+                         tooCloseToBranch = true;
+                         break;
+                    }
+                }
+
+                if (!tooCloseToBranch) {
+                    foundValidPos = true;
+                }
+                attempts++;
+            }
+
+            if (foundValidPos) {
+                // 回転、スケール、色を設定
+                const rotation = new THREE.Euler(
+                    Math.random() * Math.PI,
+                    Math.random() * Math.PI,
+                    Math.random() * Math.PI
+                );
+                const scale = new THREE.Vector3(
+                    0.8 + Math.random() * 0.4,
+                    0.8 + Math.random() * 0.4,
+                    1.0 // Z軸方向は薄く保つ
+                );
+                const color = new THREE.Color().setHSL(0.3 + Math.random() * 0.1, 0.8, 0.4 + Math.random() * 0.2);
+
+                leafData.push({
+                    position: new THREE.Vector3(finalX, finalY, finalZ),
+                    rotation: rotation,
+                    scale: scale,
+                    color: color
+                });
+            }
+        }
+
+        return leafData;
+    }
 }

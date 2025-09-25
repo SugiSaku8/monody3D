@@ -11,7 +11,7 @@ export class Chunk {
         this.z = z;
         this.size = size;
         this.mesh = null;
-        this.objects = [];
+        this.objects = []; // この配列は、Chunkが管理する追加オブジェクト用 (例: 木)
         this.isLoaded = false;
         this.biomeManager = biomeManager;
         this.physicsWorld = physicsWorld; // 必要に応じて削除 (Y=0のコライダーが不要なら)
@@ -96,49 +96,12 @@ export class Chunk {
 
         // --- 修正: Y=0 のチャンクのみにオブジェクトを配置 ---
         // 物理コライダーは Player.js のロジックで処理するため、ここでは生成しない
+        // biome.generateObjectsInChunk とその結果の処理を削除
         if (this.y === 0) {
-            // バイオームからオブジェクトを生成して追加
-            const objectsToPlace = biome.generateObjectsInChunk(this.x, this.z, this.size);
-            objectsToPlace.forEach(objData => {
-                let objectMesh;
-                if (objData.type === 'tree') {
-                    const trunkGeometry = new THREE.CylinderGeometry(0.1, 0.2, 1, 8);
-                    const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
-                    const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
-
-                    const leavesGeometry = new THREE.SphereGeometry(0.8, 8, 8);
-                    const objColor = objData.properties && objData.properties.color ? objData.properties.color : 0x228B22; // デフォルト色
-                    const leavesMaterial = new THREE.MeshStandardMaterial({ color: objColor });
-                    const leaves = new THREE.Mesh(leavesGeometry, leavesMaterial);
-                    leaves.position.y = 1.5; // 木の幹の上に乗せる
-
-                    objectMesh = new THREE.Group();
-                    objectMesh.add(trunk);
-                    objectMesh.add(leaves);
-                } else if (objData.type === 'cactus') {
-                    // カクタスの例
-                    const cactusGeometry = new THREE.BoxGeometry(0.3, 1.5, 0.3);
-                    const objColor = objData.properties && objData.properties.color ? objData.properties.color : 0x32CD32; // デフォルト色
-                    const cactusMaterial = new THREE.MeshStandardMaterial({ color: objColor });
-                    objectMesh = new THREE.Mesh(cactusGeometry, cactusMaterial);
-                } else if (objData.type === 'rock') {
-                    const rockGeometry = new THREE.DodecahedronGeometry(0.4, 0);
-                    const objColor = objData.properties && objData.properties.color ? objData.properties.color : 0x808080; // デフォルト色
-                    const rockMaterial = new THREE.MeshStandardMaterial({ color: objColor });
-                    objectMesh = new THREE.Mesh(rockGeometry, rockMaterial);
-                } else {
-                    // その他の基本的なオブジェクト
-                    const geometry = new THREE.SphereGeometry(0.5, 8, 8);
-                    const objColor = objData.properties && objData.properties.color ? objData.properties.color : 0xCCCCCC; // デフォルト色
-                    const material = new THREE.MeshStandardMaterial({ color: objColor });
-                    objectMesh = new THREE.Mesh(geometry, material);
-                }
-                objectMesh.position.copy(objData.position);
-                this.addObject(objectMesh);
-            });
-
-            // Heightfield の生成は削除
-            // this.createPhysicsColliderWithHeightfield(segments, segmentSize);
+            // ここでは、WorldGenerator が生成したオブジェクトを Chunk に追加する
+            // 例えば、Tree.js が生成した木は WorldGenerator から World.js を経由して
+            // この Chunk インスタンスの addObject メソッドで追加される
+            // この if ブロック内は、必要に応じてその他のチャンク固有の処理を記述
         }
         // --- 修正 ここまで ---
 
@@ -147,10 +110,11 @@ export class Chunk {
     }
 
     // Add objects to this chunk (trees, rocks, etc.)
+    // WorldGenerator から呼び出される
     addObject(object) {
         if (this.mesh && object) {
             this.mesh.add(object);
-            this.objects.push(object);
+            this.objects.push(object); // 追加したオブジェクトを配列に保持
         }
     }
 
@@ -175,7 +139,7 @@ export class Chunk {
             }
         });
 
-        this.objects = [];
+        this.objects = []; // 配列をクリア
     }
 
     // Clean up resources
