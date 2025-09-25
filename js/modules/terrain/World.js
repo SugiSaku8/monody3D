@@ -3,6 +3,9 @@ import * as THREE from 'three';
 import { Chunk } from './Chunk.js';
 import { BiomeManager } from '../biomes/BiomeManager.js';
 import { PhysicsWorld } from '../physics/PhysicsWorld.js';
+// --- 追加: WorldGenerator をインポート ---
+import { WorldGenerator } from '../worldgen/WorldGenerator.js';
+// --- 追加 ここまで ---
 
 export class World {
     constructor(scene) {
@@ -20,19 +23,12 @@ export class World {
         // Set up lighting
         this.setupLighting();
 
-        // Y=0 の静的平面は削除 (Player.js のロジックで代用)
-        // this.addStaticGround(); // この行は削除またはコメントアウト
+        // --- 追加: WorldGenerator を初期化 ---
+        this.worldGenerator = new WorldGenerator(this, this.biomeManager, this.physicsWorld);
+        // --- 追加 ここまで ---
     }
 
     // ... (他のメソッドは変更なし) ...
-
-    // --- 追加: ワールド座標から直接地形の高さを取得 ---
-    getWorldTerrainHeightAt(x, z) {
-        // biomeManager を使用して高さを取得
-        // これは、Chunk.js の Heightfield が機能しない場合のフォールバック
-        return this.biomeManager.getBiomeAt(x, z).getHeight(x, z);
-    }
-    // --- 追加 ここまで ---
 
     setupLighting() {
         // Ambient light
@@ -66,6 +62,12 @@ export class World {
         const chunk = new Chunk(x, y, z, this.CHUNK_SIZE, this.biomeManager, this.physicsWorld);
         this.chunks.set(key, chunk);
         this.scene.add(chunk.mesh);
+
+        // --- 追加: チャンクロード時に WorldGenerator で Feature を生成 ---
+        if (y === 0) { // 例として Y=0 のチャンクのみに限定
+            this.worldGenerator.generateFeaturesInChunk(x, y, z, this.CHUNK_SIZE);
+        }
+        // --- 追加 ここまで ---
 
         return chunk;
     }
@@ -114,6 +116,10 @@ export class World {
                 this.unloadChunk(cx, cy, cz);
             }
         }
+
+        // --- 追加: グリッド単位の Feature (例: City) を生成 ---
+        this.worldGenerator.generateGridBasedFeatures(playerPosition);
+        // --- 追加 ここまで ---
     }
 
     // --- 修正: 古い getTerrainHeightAt を削除またはコメントアウト ---
@@ -122,6 +128,18 @@ export class World {
     //     return biome.getHeight(x, z);
     // }
     // --- 修正 ここまで ---
+
+    // --- 追加: WorldGenerator から呼び出される、Chunk にオブジェクトを追加するメソッド ---
+    addTreeToChunk(cx, cy, cz, treeMesh) {
+        const chunkKey = this.getChunkKey(cx, cy, cz);
+        const chunk = this.chunks.get(chunkKey);
+        if (chunk) {
+            chunk.addObject(treeMesh);
+        } else {
+            console.warn(`Chunk (${cx}, ${cy}, ${cz}) not found when adding tree.`);
+        }
+    }
+    // --- 追加 ここまで ---
 
     // 物理ワールドを更新するメソッド
     updatePhysics(deltaTime) {
