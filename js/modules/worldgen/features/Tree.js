@@ -6,8 +6,8 @@ export class Tree {
         this.world = world;
         this.biomeManager = biomeManager;
         this.physicsWorld = physicsWorld;
-        // --- 追加: 葉っぱのインスタンシング用ジオメトリとマテリアルを事前生成 ---
-        this.leafGeometry = new THREE.PlaneGeometry(0.15, 0.15); // 平面ジオメトリ (葉っぱの形状)
+        // --- 修正: 葉っぱのジオメトリとマテリアルを事前生成 (照明対応) ---
+        this.leafGeometry = new THREE.PlaneGeometry(0.15, 0.15);
         this.leafMaterial = new THREE.MeshStandardMaterial({
             color: new THREE.Color().setHSL(0.3, 0.8, 0.4), // デフォルトの緑
             roughness: 0.9,
@@ -17,7 +17,7 @@ export class Tree {
             opacity: 0.9,
             wireframe: false
         });
-        // --- 追加 ここまで ---
+        // --- 修正 ここまで ---
     }
 
     generateInChunk(cx, cy, cz, chunkSize) {
@@ -32,9 +32,7 @@ export class Tree {
 
             const terrainHeight = this.world.getWorldTerrainHeightAt(worldX, worldZ);
 
-            // --- 修正: インスタンシング版の木構造を生成 ---
             const treeGroup = this.createOptimizedTree(terrainHeight);
-            // --- 修正 ここまで ---
 
             treeGroup.position.set(
                 localX - chunkSize / 2,
@@ -46,7 +44,6 @@ export class Tree {
         }
     }
 
-    // --- 修正: メソッド名を変更して、最適化版であることを示す ---
     createOptimizedTree(groundY) {
         const treeGroup = new THREE.Group();
 
@@ -56,8 +53,10 @@ export class Tree {
         const trunkRadius = 0.15 + Math.random() * 0.1; // 幹の太さ
         const numBranches = 3 + Math.floor(Math.random() * 3); // 枝の数: 3~5
 
-        // --- 幹の生成 ---
+        // --- 修正: 幹の生成 (照明対応) ---
         const trunkGeometry = new THREE.CylinderGeometry(trunkRadius * 0.8, trunkRadius, trunkHeight, 8);
+        // 法線を計算 (必要)
+        trunkGeometry.computeVertexNormals();
         const trunkMaterial = new THREE.MeshStandardMaterial({
             color: this.getTrunkColor(),
             roughness: 0.9,
@@ -66,8 +65,9 @@ export class Tree {
         const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
         trunk.position.y = trunkHeight / 2;
         treeGroup.add(trunk);
+        // --- 修正 ここまで ---
 
-        // --- 枝の生成 ---
+        // --- 修正: 枝の生成 (照明対応) ---
         for (let i = 0; i < numBranches; i++) {
             const branchStartHeightRatio = 0.2 + Math.random() * 0.6;
             const branchStartY = trunkHeight * branchStartHeightRatio;
@@ -84,7 +84,9 @@ export class Tree {
             const branchRadius = trunkRadius * (0.3 + Math.random() * 0.2);
 
             const branchGeometry = new THREE.CylinderGeometry(branchRadius, branchRadius, branchLength, 6);
-            const branchMaterial = trunkMaterial;
+            // 法線を計算 (必要)
+            branchGeometry.computeVertexNormals();
+            const branchMaterial = trunkMaterial; // 枝も幹と同じマテリアル
             const branch = new THREE.Mesh(branchGeometry, branchMaterial);
 
             branch.position.set(0, branchStartY, 0);
@@ -95,17 +97,17 @@ export class Tree {
 
             treeGroup.add(branch);
         }
+        // --- 修正 ここまで ---
 
-        // --- 葉っぱをインスタンシングで生成 ---
-        // 葉っぱの配置情報を計算 (事前計算)
+        // --- 葉っぱをインスタンシングで生成 (照明対応) ---
         const leafPositions = this.calculateLeafPositions(trunkHeight, trunkRadius, numBranches);
         const numLeaves = leafPositions.length;
 
         if (numLeaves > 0) {
-            // --- 修正: InstancedMesh を作成 ---
+            // InstancedMesh を作成 (leafMaterial は MeshStandardMaterial)
             const instancedMesh = new THREE.InstancedMesh(this.leafGeometry, this.leafMaterial, numLeaves);
 
-            // 各インスタンスの変換行列を設定
+            // 各インスタンスの変換行列と色を設定
             const matrix = new THREE.Matrix4();
             const color = new THREE.Color();
             for (let i = 0; i < numLeaves; i++) {
@@ -116,16 +118,17 @@ export class Tree {
 
                 matrix.compose(pos, new THREE.Quaternion().setFromEuler(rot), scl);
                 instancedMesh.setMatrixAt(i, matrix);
-                instancedMesh.setColorAt(i, col);
+                // InstancedMesh では、インスタンスごとの色を設定する方法が限られています
+                // ここでは、leafMaterial 自体の色を変更するのではなく、
+                // InstancedBufferAttribute を使用して、シェーダー内で色を変える方法もありますが、
+                // 今回は leafMaterial のデフォルト色 (緑) を使用し、照明で明るさが変化するようにします
+                // instancedMesh.setColorAt(i, col); // これは MeshStandardMaterial では期待通りに機能しない場合があります
             }
 
             instancedMesh.instanceMatrix.needsUpdate = true;
-            if (instancedMesh.instanceColor) {
-                instancedMesh.instanceColor.needsUpdate = true;
-            }
+            // instancedMesh.instanceColor.needsUpdate = true; // setColorAt が機能しない場合コメントアウト
 
             treeGroup.add(instancedMesh);
-            // --- 修正 ここまで ---
         }
 
         return treeGroup;
@@ -138,16 +141,23 @@ export class Tree {
         return new THREE.Color().setHSL(hue, saturation, lightness);
     }
 
-    // --- 追加: 葉っぱの位置、回転、スケール、色を計算するメソッド ---
+    // --- 修正: 葉っぱの位置を計算するメソッド (数を減らす) ---
     calculateLeafPositions(trunkHeight, trunkRadius, numBranches) {
         const leafData = [];
-        const totalLeafCount = 200 + Math.floor(Math.random() * 300); // 1本の木に200~500枚の葉っぱ
+        // --- 修正: 葉っぱの総数を減らす ---
+        const totalLeafCount = 100 + Math.floor(Math.random() * 150); // 200~500 から 100~250 に
+        // --- 修正 ここまで ---
 
         // 木全体を覆う球状の空間を想定
         const canopyRadius = 1.5 + trunkHeight * 0.3; // 樹冠の半径
         const canopyCenterY = trunkHeight + canopyRadius * 0.3; // 樹冠の中心Y (やや上にずらす)
 
         for (let i = 0; i < totalLeafCount; i++) {
+            // (中略 - 計算ロジックは変更なし)
+            // ... (計算ロジックは以前のコードと同様) ...
+            // 最終的に leafData に追加
+            // ...
+
             // 球状に葉っぱのベース位置を生成
             const u = Math.random();
             const v = Math.random();

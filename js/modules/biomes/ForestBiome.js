@@ -3,35 +3,29 @@ import * as THREE from 'three';
 import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js';
 import { Biome } from './Biome.js';
 
-/**
- * 森バイオーム
- */
 export class ForestBiome extends Biome {
   constructor() {
     super('Forest', {
       heightScale: 1.0,
-      materialColor: 0x228B22, // 森緑
-      floraDensity: 0.3, // 木の密度 (この値はオブジェクト生成全体の密度かもしれません)
+      floraDensity: 0.3,
       treeTypes: [
-        { type: 'tree', density: 0.05, properties: { color: 0x228B22 } }, // density を下げた
-        { type: 'bush', density: 0.02, properties: { color: 0x32CD32 } }  // density を下げた
+        { type: 'tree', density: 0.2, properties: { color: 0x228B22 } },
+        { type: 'bush', density: 0.1, properties: { color: 0x32CD32 } }
       ]
-    });
+    },
+    // --- 追加: 草の設定 ---
+    {
+        density: 0.8, // 1平方メートルあたり0.8本程度 (例)
+        color: new THREE.Color(0x32CD32) // 森に合いそうな明るい緑
+    }
+    // --- 追加 ここまで ---
+    );
   }
 
   getHeight(x, z) {
-    // 単純な例: パーリンノイズにバイオーム固有のスケールを適用
-    // 実際にはより複雑なノイズ関数や、複数のオクターブを使用
-    const perlin = new ImprovedNoise(); // Three.js Addons から
+    const perlin = new ImprovedNoise();
     return perlin.noise(x * 0.02, 0, z * 0.02) * this.config.heightScale * 10;
   }
 
-  getMaterial(x, z) {
-    // 簡易的なマテリアル返却
-    return new THREE.MeshStandardMaterial({ color: this.config.materialColor });
-  }
-
-  getObjects() {
-    return this.config.treeTypes;
-  }
+  // getMaterial は親クラスのものを使用
 }

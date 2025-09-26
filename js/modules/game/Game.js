@@ -25,12 +25,14 @@ export class Game {
         // Set up event listeners
         this.setupEventListeners();
 
-        // --- 追加: ゲーム内時間関連 ---
-        this.gameTime = 0; // ゲーム内時間 (秒)
-        this.gameTimeSpeed = (24 * 60 * 60) / (33 * 60); // 33分(real) = 24時間(game) -> 1秒(real) = 24*3600/33*60 秒(game)
+        // --- 追加: 時間管理 ---
+        this.gameTimeSeconds = 0; // ゲーム内経過秒
+        this.gameSpeedFactor = 82.5; // 現実秒 / ゲーム秒 (33 * 60 / 24 / 60)
+        this.currentGameHour = 0;
+        this.currentGameMinute = 0;
         // --- 追加 ここまで ---
 
-        // FPS計算用変数など
+        // FPS計算用の変数
         this.frameCount = 0;
         this.lastFpsUpdate = performance.now();
         this.currentFps = 0;
@@ -46,10 +48,13 @@ export class Game {
     setupRenderer() {
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.shadowMap.enabled = true; // シャドウマップ有効化
-        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap; // ソフトシャドウ
+        this.renderer.shadowMap.enabled = true;
+        // --- 追加: レンダラーのクリア色を空色に近い色に設定 ---
+        this.renderer.setClearColor( 0x87CEEB ); // スカイブルー
+        // --- 追加 ここまで ---
         document.getElementById('canvasWrapper').appendChild(this.renderer.domElement);
     }
+
 
     setupEventListeners() {
         window.addEventListener('resize', this.onWindowResize.bind(this));
@@ -66,8 +71,13 @@ export class Game {
 
         const delta = this.clock.getDelta();
 
-        // --- 追加: ゲーム内時間を更新 ---
-        this.gameTime += delta * this.gameTimeSpeed;
+        // --- 追加: ゲーム時間経過計算 ---
+        this.gameTimeSeconds += delta / this.gameSpeedFactor;
+        // 24時間でループ (86400秒)
+        this.gameTimeSeconds = this.gameTimeSeconds % (24 * 60 * 60);
+
+        this.currentGameHour = Math.floor(this.gameTimeSeconds / 3600);
+        this.currentGameMinute = Math.floor((this.gameTimeSeconds % 3600) / 60);
         // --- 追加 ここまで ---
 
         // Update physics
@@ -76,8 +86,10 @@ export class Game {
         // Update player
         this.player.update(delta);
 
-        // Update world (chunk loading/unloading, 太陽更新)
-        this.world.update(this.player.position, this.gameTime); // gameTime を渡す
+        // Update world (chunk loading/unloading)
+        // --- 修正: World にゲーム時間を渡す ---
+        this.world.update(this.player.position, this.currentGameHour, this.currentGameMinute);
+        // --- 修正 ここまで ---
 
         // Update UI
         this.uiManager.update(this.player);
@@ -85,19 +97,21 @@ export class Game {
         // Render scene
         this.renderer.render(this.scene, this.player.camera);
 
-        // FPS計算と表示
+        // --- 追加: FPS計算と表示 ---
         this.frameCount++;
         const now = performance.now();
         const deltaMs = now - this.lastFpsUpdate;
 
-        if (deltaMs >= 1000) {
+        if (deltaMs >= 1000) { // 1秒経過したらFPSを計算
             this.currentFps = Math.round((this.frameCount * 1000) / deltaMs);
             this.frameCount = 0;
             this.lastFpsUpdate = now;
 
+            // FPSとゲーム内時刻をHTML要素に表示
             if (this.fpsElement) {
-                this.fpsElement.textContent = `FPS: ${this.currentFps}`;
+                this.fpsElement.textContent = `FPS: ${this.currentFps} | Time: ${String(this.currentGameHour).padStart(2, '0')}:${String(this.currentGameMinute).padStart(2, '0')}`;
             }
         }
+        // --- 追加 ここまで ---
     }
 }

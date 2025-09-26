@@ -1,14 +1,14 @@
 // js/modules/entities/Player.js
 import * as THREE from 'three';
-import * as CANNON from 'cannon-es';
+import * as CANNON from 'cannon-es'; // Cannon-es をインポート
 
 export class Player {
-    constructor(scene, world) {
+    constructor(scene, world) { // World インスタンスを受け取る
         this.scene = scene;
         this.world = world; // World インスタンスを保存
-        this.SPEED = 5.0; // 移動速度 (必要に応じて調整)
+        this.SPEED = 5.0;
         this.JUMP_FORCE = 4.0;
-        this.GRAVITY = 20.0; // 物理エンジンの重力に合わせる
+        this.GRAVITY = 20.0;
         this.moveDirection = new THREE.Vector3();
         this.velocity = new THREE.Vector3();
         this.isOnGround = false;
@@ -20,9 +20,12 @@ export class Player {
             0.1,
             1000
         );
-        this.camera.position.set(0, 1.6, 0); // 目の高さ
+        // --- 修正: カメラの初期位置を固定 ---
+        // 目の高さ (1.6m) 分だけ、物理ボディの中心から上にずらす
+        this.camera.position.set(0, 1.6, 0);
+        // --- 修正 ここまで ---
 
-        // Set up player physics (Y軸回転のみ固定)
+        // Set up player physics
         this.setupPhysics();
 
         // Set up controls
@@ -65,31 +68,23 @@ export class Player {
         const radius = 0.5;
         const height = 1.8;
 
+        // CANNON.Cylinder は Y軸方向に伸びる円柱
         const shape = new CANNON.Cylinder(radius, radius, height, 8);
 
+        // --- 修正: 物理ボディの初期位置を Y=5 (地面から5m上) に固定 ---
         this.body = new CANNON.Body({
             mass: 5,
             position: new CANNON.Vec3(0, 5, 0), // Start slightly above ground (例: Y=5)
             shape: shape,
             // Y軸回転のみ固定 (視点操作と一致させるため)
-            fixedRotation: false, // XZ軸回転を許可して斜面に沿う
+            fixedRotation: true, // Y軸回転は固定、XZ回転は許可 (斜面に沿って回転)
             linearDamping: 0.1, // Air resistance
             angularDamping: 0.99 // Rotational resistance
         });
-
-        // Y軸回転のみ固定
-        this.body.angularFactor.set(0, 1, 0); // X, Y, Z の回転を制限 (0で固定, 1で自由)
+        // --- 修正 ここまで ---
 
         // Add the body to the physics world
         this.world.physicsWorld.addBody(this.body);
-
-        // Collision event listener for ground detection (if needed)
-        // this.body.addEventListener("collide", (e) => {
-        //     // Check if collision normal is upwards (approx)
-        //     if (e.contact.ni.y > 0.5) {
-        //         this.isOnGround = true;
-        //     }
-        // });
     }
 
     get position() {
@@ -140,9 +135,6 @@ export class Player {
 
         // Update camera rotation
         this.camera.quaternion.setFromEuler(new THREE.Euler(this.pitch, this.yaw, 0, 'YXZ'));
-
-        // Y軸回転のみ同期
-        this.body.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), this.yaw);
     }
 
     jump() {
@@ -155,16 +147,16 @@ export class Player {
     }
 
     update(delta) {
+        // Update camera position to follow physics body
+        this.camera.position.copy(this.body.position);
+        this.camera.position.y += 0.5; // Adjust for eye level (0.5 = height/2)
+
         // Handle movement
         this.handleMovement(delta);
 
         // --- 修正: World.getWorldTerrainHeightAt を使用して接地判定と位置補正 ---
         this.checkGroundContactWithWorldHeight();
         // --- 修正 ここまで ---
-
-        // Update camera position to follow physics body
-        this.camera.position.copy(this.body.position);
-        this.camera.position.y += 0.5; // Adjust for eye level (0.5 = height/2)
     }
 
     handleMovement(delta) {
@@ -182,8 +174,8 @@ export class Player {
         // Apply movement based on key states
         if (this.keys['w']) this.moveDirection.add(forwardFlat);
         if (this.keys['s']) this.moveDirection.sub(forwardFlat);
-        if(this.keys['a']) this.moveDirection.sub(rightFlat);
-        if(this.keys['d']) this.moveDirection.add(rightFlat);
+        if (this.keys['a']) this.moveDirection.sub(rightFlat);
+        if (this.keys['d']) this.moveDirection.add(rightFlat);
 
         // Normalize and scale by speed
         if (this.moveDirection.lengthSq() > 0) {
@@ -191,15 +183,16 @@ export class Player {
         }
 
         // Apply movement to physics body (X, Z only)
+        // 重力は物理エンジンが処理するため、Y方向の速度は変更しない (ジャンプ以外)
         this.body.velocity.x = this.moveDirection.x;
         this.body.velocity.z = this.moveDirection.z;
-        // Y速度は、ジャンプや重力、または接地判定で変更
+        // Y速度は、ジャンプや重力、または接地補正で変更
     }
 
-    // --- 追加: World.getWorldTerrainHeightAt を使用した接地判定と位置補正 ---
+    // --- 追加: World.getWorldTerrainHeightAt を使用した接地判定 ---
     checkGroundContactWithWorldHeight() {
         const playerPos = this.body.position;
-        // World クラスの新しいメソッドを使用
+        // World.js に追加したメソッドを使用
         const terrainHeight = this.world.getWorldTerrainHeightAt(playerPos.x, playerPos.z);
 
         // プレイヤーの足元のY座標 (Bodyの中心Y - 高さ/2)
@@ -212,8 +205,7 @@ export class Player {
         if (playerFootY <= terrainHeight + tolerance) {
             // プレイヤーの位置を地形の高さに補正
             this.body.position.y = terrainHeight + 1.8 / 2; // 足元 -> 中心Yに変換
-            // Y方向の速度を0に近づける (完全に0にすると落下判定がおかしくなる可能性があるため、少し残す)
-            this.body.velocity.y = Math.max(this.body.velocity.y, 0); // 落下速度を止めるが、上昇速度は維持
+            this.body.velocity.y = 0; // Y方向の速度を0にして落下を止める
             this.isOnGround = true;
         } else {
             // 地形から離れている場合、接地状態を解除
