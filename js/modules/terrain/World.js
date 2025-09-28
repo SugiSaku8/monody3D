@@ -1,10 +1,11 @@
 // js/modules/terrain/terrain/World.js
 import * as THREE from 'three';
 import { Chunk } from './Chunk.js';
-import { BiomeManager } from '../biomes/BiomeManager.js';
 import { PhysicsWorld } from '../physics/PhysicsWorld.js';
 import { WorldGenerator } from '../worldgen/WorldGenerator.js';
-
+import { TropicalRainforestBiome } from '../biomes/TropicalRainforestBiome.js';
+import { ForestBiome } from '../biomes/ForestBiome.js'; // 必要に応じて追加
+import { BiomeManager } from '../biomes/BiomeManager.js';
 export class World {
     constructor(scene) {
         this.scene = scene;
@@ -12,21 +13,33 @@ export class World {
         this.CHUNK_SIZE = 32;
         this.RENDER_DISTANCE = 2;
 
-        // --- 追加: ゲーム内時間 ---
-        this.gameTime = 0; // 0.0 から 1.0 の範囲で循環 (0.0 = 真夜中, 0.25 = 日の出, 0.5 = 昼, 0.75 = 日没)
-        // --- 追加 ここまで ---
-
-        // BiomeManager を初期化
+        // --- 修正: BiomeManager を初期化 ---
         this.biomeManager = new BiomeManager();
+        // --- 修正 ここまて ---
 
-        // PhysicsWorld を初期化して保持
+        // --- 追加: バイオームを BiomeManager に登録 ---
+        this.registerBiomes();
+        // --- 追加 ここまて ---
+
         this.physicsWorld = new PhysicsWorld();
-
-        // Set up lighting & sky
         this.setupLighting();
-
-        // WorldGenerator を初期化
         this.worldGenerator = new WorldGenerator(this, this.biomeManager, this.physicsWorld);
+    }
+
+    // --- 追加: バイオームを登録するメソッド ---
+    registerBiomes() {
+        // 1. バイオームクラスのインスタンスを生成
+        const tropicalRainforestBiome = new TropicalRainforestBiome();
+        const forestBiome = new ForestBiome(); // フォールバック用
+        // const savannaBiome = new SavannaBiome();
+        // ... (他のバイオームも同様にインスタンス化)
+
+        // 2. BiomeManager に登録
+        this.biomeManager.registerBiome('Af', tropicalRainforestBiome);
+        this.biomeManager.registerBiome('Forest', forestBiome); // フォールバック
+        // this.biomeManager.registerBiome('Aw', savannaBiome);
+        // ... (他のバイオームも登録)
+        console.log("Biomes registered with BiomeManager.");
     }
     getWorldTerrainHeightAt(x, z) {
         // 1. バイオームを取得 (高度0として仮計算)

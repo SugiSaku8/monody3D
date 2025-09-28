@@ -1,5 +1,6 @@
 // js/modules/biomes/Biome.js
 import * as THREE from 'three';
+import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js'; // ここでインポート
 
 // --- 修正: GLSL用のSimplexNoise関数 (定義順序と型を修正) ---
 // すべての permute と mod289 のオーバーロードを、snoise より前に定義
@@ -123,80 +124,91 @@ float detailedNoise(vec3 x, int detailOctaves, float detailLacunarity, float det
 `;
 // --- 修正 ここまで ---
 
+// --- 修正: シェーダーの頂点シェーダー ---
 const vertexShader = `
     varying vec3 vWorldPos;
     varying vec3 vNormal;
+    // --- 追加: UV座標をフラグメントシェーダーに渡す ---
+    varying vec2 vUv;
+    // --- 追加 ここまで ---
 
     void main() {
         vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
         vNormal = normalize(normalMatrix * normal);
+        // --- 追加: UV座標を計算して渡す ---
+        vUv = uv;
+        // --- 追加 ここまで ---
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
     }
 `;
+// --- 修正 ここまで ---
 
+// --- 修正: シェーダーのフラグメントシェーダー (uniform 拡張) ---
 const fragmentShader = `
     // SimplexNoise 関数をインクルード
     ${glslSimplexNoise}
 
-    // テクスチャの uniform
+    // --- 修正: テクスチャの uniform ---
     uniform sampler2D grassTexture;
     uniform sampler2D dirtTexture;
     uniform sampler2D rockTexture;
     uniform sampler2D sandTexture;
+    // --- 修正 ここまで ---
 
-    // テクスチャスケール (tile)
-    uniform float textureScale;
-
-    // ノイズスケールとFBMパラメータ
-    uniform float noiseScale;
-    uniform int fbmOctaves;
-    uniform float fbmLacunarity;
-    uniform float fbmGain;
-    // --- 追加: 詳細ノイズ用のパラメータ ---
-    uniform int detailOctaves;
-    uniform float detailLacunarity;
-    uniform float detailGain;
+    // --- 追加: バイオーム固有の uniform ---
+    uniform vec3 baseTerrainColor; // 地形の基本色 (SkyColorから名前変更)
+    uniform float textureScale; // テクスチャのタイルスケール
+    uniform float noiseScale; // ノイズスケール
+    uniform int fbmOctaves; // FBMのオクターブ数
+    uniform float fbmLacunarity; // FBMのラクナリティ
+    uniform float fbmGain; // FBMのゲイン
+    uniform float slopeThresholdGrassToRock; // 草->岩の傾き閾値
+    uniform float slopeThresholdRockToSand; // 岩->砂の傾き閾値
     // --- 追加 ここまで ---
-
-    // スロープパラメータ
-    uniform float slopeThresholdGrassToRock;
-    uniform float slopeThresholdRockToSand;
 
     varying vec3 vWorldPos;
     varying vec3 vNormal;
+    // --- 追加: UV座標を受け取る ---
+    varying vec2 vUv;
+    // --- 追加 ここまで ---
 
     void main() {
-        // テクスチャ座標 (ワールド座標から計算)
-        vec2 texCoord = vWorldPos.xz * textureScale;
+        // --- 修正: テクスチャ座標 (ワールド座標またはUV座標から計算) ---
+        // ここでは、vUv (頂点シェーダーから渡されたUV) を使用
+        vec2 texCoord = vUv * textureScale;
+        // または、ワールド座標から計算: vec2 texCoord = vWorldPos.xz * textureScale;
+        // --- 修正 ここまて ---
 
-        // SimplexNoise と FBM を使用して基本的な地形パターンを生成
-        vec3 noiseInput = vec3(texCoord, 0.0) * noiseScale;
-        float baseNoise = fbm(noiseInput, fbmOctaves, fbmLacunarity, fbmGain);
-
-        // --- 修正: より細かいノイズを適用 ---
-        float detailedBaseNoise = detailedNoise(noiseInput, detailOctaves, detailLacunarity, detailGain, baseNoise);
+        // --- 修正: FBM を使用して複数のノイズ値を生成 ---
+        vec3 fbmInput = vec3(vWorldPos.xz * noiseScale, 0.0);
+        float baseNoise = fbm(fbmInput, fbmOctaves, fbmLacunarity, fbmGain);
+        float rockNoise = fbm(fbmInput * 2.0 + vec3(100.0), fbmOctaves, fbmLacunarity, fbmGain);
+        float sandNoise = fbm(fbmInput * 4.0 + vec3(200.0), fbmOctaves, fbmLacunarity, fbmGain);
         // --- 修正 ここまで ---
 
-        // ノイズ値から各テクスチャの「出現確率」的な重みを計算
-        float grassWeight = smoothstep(-0.2, 0.3, detailedBaseNoise);
-        float dirtWeight = smoothstep(-0.5, 0.0, detailedBaseNoise) * (1.0 - grassWeight);
-        float rockWeight = smoothstep(0.1, 0.6, detailedBaseNoise);
-        float sandWeight = smoothstep(0.4, 0.9, detailedBaseNoise);
+        // --- 修正: ノイズ値から各テクスチャの重みを計算 ---
+        float grassWeight = smoothstep(-0.2, 0.3, baseNoise);
+        float dirtWeight = smoothstep(-0.5, 0.0, baseNoise) * (1.0 - grassWeight);
+        float rockWeight = smoothstep(0.1, 0.6, rockNoise);
+        float sandWeight = smoothstep(0.4, 0.9, sandNoise);
+        // --- 修正 ここまて ---
 
-        // スロープ（傾き）を計算 (法線のY成分から)
+        // --- 修正: スロープ（傾き）を計算 (法線のY成分から) ---
         float slope = 1.0 - abs(vNormal.y);
+        // --- 修正 ここまて ---
 
-        // スロープに基づいて重みを調整
+        // --- 修正: スロープに基づいて重みを調整 ---
         float slopeFactorGrass = 1.0 - smoothstep(slopeThresholdGrassToRock, slopeThresholdGrassToRock + 0.1, slope);
         float slopeFactorRock = smoothstep(slopeThresholdGrassToRock, slopeThresholdGrassToRock + 0.1, slope);
         float slopeFactorSand = smoothstep(slopeThresholdRockToSand, slopeThresholdRockToSand + 0.1, slope);
 
         grassWeight *= slopeFactorGrass;
-        dirtWeight *= slopeFactorGrass; // 土も平坦な場所に多い
+        dirtWeight *= slopeFactorGrass;
         rockWeight *= slopeFactorRock;
         sandWeight *= slopeFactorSand;
+        // --- 修正 ここまて ---
 
-        // 重みの合計を計算し、正規化
+        // --- 修正: 重みの合計を計算し、正規化 ---
         float totalWeight = grassWeight + dirtWeight + rockWeight + sandWeight;
         if (totalWeight > 0.0) {
              grassWeight /= totalWeight;
@@ -205,37 +217,52 @@ const fragmentShader = `
              sandWeight /= totalWeight;
         } else {
              grassWeight = 0.0;
-             dirtWeight = 1.0; // デフォルトは土
+             dirtWeight = 1.0;
              rockWeight = 0.0;
              sandWeight = 0.0;
         }
+        // --- 修正 ここまて ---
 
-        // 各テクスチャをサンプリング
+        // --- 修正: 各テクスチャをサンプリング ---
         vec3 grassTex = texture2D(grassTexture, texCoord).rgb;
         vec3 dirtTex = texture2D(dirtTexture, texCoord).rgb;
         vec3 rockTex = texture2D(rockTexture, texCoord).rgb;
         vec3 sandTex = texture2D(sandTexture, texCoord).rgb;
+        // --- 修正 ここまて ---
 
-        // --- 修正: 土の質感をさらに荒っぽく、細かく ---
-        float dirtNoise = snoise(noiseInput * 10.0);
+        // --- 修正: 土の質感を荒っぽくする (高周波ノイズを乗算) ---
+        float dirtNoise = snoise(fbmInput * 10.0);
         vec3 dirtTexRough = dirtTex * (0.9 + 0.1 * dirtNoise);
+        // --- 修正 ここまて ---
 
-        // 重みに基づいてテクスチャをブレンド
+        // --- 修正: 重みに基づいてテクスチャをブレンド ---
         vec3 finalColor = grassWeight * grassTex +
                           dirtWeight * dirtTexRough +
                           rockWeight * rockTex +
                           sandWeight * sandTex;
+        // --- 修正 ここまて ---
 
-        // 法線に基づくライティング (簡易版)
+        // --- 修正: バイオーム固有の色調整 (例: baseTerrainColor を乗算) ---
+        // これにより、TropicalRainforestBiome で濃い緑を指定できる
+        finalColor *= baseTerrainColor;
+        // --- 修正 ここまて ---
+
+        // --- 修正: 法線に基づくライティング (簡易版) ---
         float lighting = max(0.2, dot(vNormal, normalize(vec3(1.0, 1.0, 1.0))));
+        // --- 修正 ここまて ---
 
         gl_FragColor = vec4(finalColor * lighting, 1.0);
     }
 `;
+// --- 修正 ここまで ---
 
 export class Biome {
-  constructor(name, config = {}, grassConfig = {}) {
+  constructor(name, classification = 'Unknown', temperature = 0, precipitation = 0, humidity = 0, config = {}, grassConfig = {}) {
     this.name = name;
+    this.classification = classification;
+    this.temperature = temperature;
+    this.precipitation = precipitation;
+    this.humidity = humidity;
     this.config = config;
     this.grassConfig = {
         density: grassConfig.density || 0,
@@ -247,8 +274,9 @@ export class Biome {
     return 0;
   }
 
+  // --- 修正: getMaterial メソッド (uniform 拡張対応) ---
   getMaterial(x, z) {
-    // テクスチャをロード (開発用の色テクスチャ)
+    // --- 追加: テクスチャをロード (開発用の色テクスチャ) ---
     const generateColorTexture = (color) => {
         const canvas = document.createElement('canvas');
         canvas.width = 64;
@@ -266,42 +294,39 @@ export class Biome {
     const dirtTexture = generateColorTexture(new THREE.Color(0x8B7355));
     const rockTexture = generateColorTexture(new THREE.Color(0x808080));
     const sandTexture = generateColorTexture(new THREE.Color(0xF4A460));
+    // --- 追加 ここまで ---
 
+    // --- 修正: uniform を拡張 ---
     const uniforms = {
+        // テクスチャ
         grassTexture: { value: grassTexture },
         dirtTexture: { value: dirtTexture },
         rockTexture: { value: rockTexture },
         sandTexture: { value: sandTexture },
+        // バイオーム固有のパラメータ
+        baseTerrainColor: { value: new THREE.Color(0x00aa00) }, // デフォルトの緑
         textureScale: { value: 0.05 },
         noiseScale: { value: 0.1 },
-        fbmOctaves: { value: 6 },
-        fbmLacunarity: { value: 2.1 },
-        fbmGain: { value: 0.45 },
-        // --- 追加: 詳細ノイズ用のuniform ---
-        detailOctaves: { value: 4 },
-        detailLacunarity: { value: 2.2 },
-        detailGain: { value: 0.4 },
-        // --- 追加 ここまで ---
+        fbmOctaves: { value: 4 },
+        fbmLacunarity: { value: 2.0 },
+        fbmGain: { value: 0.5 },
         slopeThresholdGrassToRock: { value: 0.3 },
         slopeThresholdRockToSand: { value: 0.7 }
     };
+    // --- 修正 ここまて ---
 
     const material = new THREE.ShaderMaterial({
         uniforms: uniforms,
         vertexShader: vertexShader,
         fragmentShader: fragmentShader,
-        // wireframe: true, // デバッグ用
     });
 
     return material;
   }
+  // --- 修正 ここまて ---
 
   getObjects() {
     return [];
-  }
-
-  getGrassData() {
-      return this.grassConfig;
   }
 
   generateObjectsInChunk(cx, cz, chunkSize) {
@@ -328,5 +353,17 @@ export class Biome {
       }
     }
     return objects;
+  }
+
+  getGrassData() {
+      return this.grassConfig;
+  }
+
+  getTraits() {
+      return [];
+  }
+
+  getDescription() {
+      return `A ${this.classification} biome.`;
   }
 }
