@@ -251,18 +251,18 @@ export class World {
         // --- 修正 ここまで ---
 
         // --- 修正: 影用の方向光 ---
-        this.directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        this.directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
         this.directionalLight.position.copy(initialSunPosition); // 定義済みの位置を使用
         this.directionalLight.position.normalize().multiplyScalar(10); // シーン内の適当な位置に
         this.directionalLight.castShadow = true;
-        this.directionalLight.shadow.mapSize.width = 2048;
-        this.directionalLight.shadow.mapSize.height = 2048;
-        this.directionalLight.shadow.camera.left = -100;
-        this.directionalLight.shadow.camera.right = 100;
-        this.directionalLight.shadow.camera.top = 100;
-        this.directionalLight.shadow.camera.bottom = -100;
-        this.directionalLight.shadow.camera.near = 0.5;
-        this.directionalLight.shadow.camera.far = 500;
+        this.directionalLight.shadow.mapSize.width = 1014;
+        this.directionalLight.shadow.mapSize.height = 1024;
+        this.directionalLight.shadow.camera.left = -50;
+        this.directionalLight.shadow.camera.right = 50;
+        this.directionalLight.shadow.camera.top = 50;
+        this.directionalLight.shadow.camera.bottom = -50;
+        this.directionalLight.shadow.camera.near = 0.25;
+        this.directionalLight.shadow.camera.far = 250;
         this.scene.add(this.directionalLight);
         // --- 修正 ここまで ---
 
@@ -282,7 +282,7 @@ export class World {
         // --- 修正 ここまで ---
 
         // --- 修正: 環境光 ---
-        const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+        const ambientLight = new THREE.AmbientLight(0x404040, 1.14);
         this.scene.add(ambientLight);
         // --- 修正 ここまで ---
     }

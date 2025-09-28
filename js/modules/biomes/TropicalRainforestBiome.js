@@ -28,7 +28,7 @@ export class TropicalRainforestBiome extends Biome {
       },
       {
         density: 0.9,
-        color: new THREE.Color(0x228B22)
+        color: new THREE.Color(0x009944)
       }
     );
   }

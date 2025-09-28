@@ -35,6 +35,11 @@ export class Chunk {
         // const worldCenterZ = this.z * this.size + this.size / 2;
         // const biome = this.biomeManager.getBiomeAt(worldCenterX, worldCenterZ);
         const biome = this.biome; // すでに保持している biome を使用
+        console.log("Chunk Biome:", biome?.name, biome?.classification); // チャンクのバイオームをログ出力
+        if (!biome) {
+             console.error(`Biome is null/undefined for chunk (${this.x}, ${this.z})`);
+             // ここで処理を中断するか、エラーマテリアルを設定
+        }
         const material = biome.getMaterial(this.x * this.size, this.z * this.size) || new THREE.MeshStandardMaterial({ color: 0x00aa00 });
 
         const segments = 32; // 32x32 のグリッド

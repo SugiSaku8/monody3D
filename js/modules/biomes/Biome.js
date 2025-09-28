@@ -251,7 +251,7 @@ const fragmentShader = `
         float lighting = max(0.2, dot(vNormal, normalize(vec3(1.0, 1.0, 1.0))));
         // --- 修正 ここまて ---
 
-        gl_FragColor = vec4(finalColor * lighting, 1.0);
+        gl_FragColor = vec4(finalColor / lighting , 1.0);
     }
 `;
 // --- 修正 ここまで ---
