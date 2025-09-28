@@ -4,7 +4,8 @@ export class UIManager {
         this.playerChunkElement = document.getElementById('playerChunk');
         this.onGroundElement = document.getElementById('onGround');
         this.messageElement = document.getElementById('message');
-        
+        this.biomeInfoElement = document.getElementById('biomeInfo');
+
         // Initialize any UI elements
         this.init();
     }
@@ -35,6 +36,18 @@ export class UIManager {
         if (this.onGroundElement) {
             this.onGroundElement.textContent = player.isOnGround ? 'true' : 'false';
             this.onGroundElement.style.color = player.isOnGround ? '#00ff00' : '#ff0000';
+        }
+        if (this.biomeInfoElement && player && player.world && player.world.biomeManager) {
+            const playerPos = player.position;
+            // Y=0でのバイオームを取得 (または、プレイヤーの現在地のY座標を使用)
+            const currentBiome = player.world.biomeManager.getBiomeAt(playerPos.x, 0, playerPos.z);
+            if (currentBiome) {
+                this.biomeInfoElement.textContent = `Biome: ${currentBiome.name} (${currentBiome.classification})`;
+                this.biomeInfoElement.style.color = '#FFFFFF'; // 白字
+            } else {
+                this.biomeInfoElement.textContent = 'Biome: Unknown';
+                this.biomeInfoElement.style.color = '#FF0000'; // 赤字
+            }
         }
     }
     

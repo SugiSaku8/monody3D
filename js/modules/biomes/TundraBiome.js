@@ -1,37 +1,70 @@
 // js/modules/biomes/TundraBiome.js
 import * as THREE from 'three';
 import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js';
-
 import { Biome } from './Biome.js';
 
 /**
- * ツンドラバイオーム
+ * ツンドラ気候 (ET) バイオーム
+ * 夏でも平均気温10℃未満。草や苔が生える。かなり面白い生態系。
  */
 export class TundraBiome extends Biome {
   constructor() {
-    super('Tundra', {
-      heightScale: 1.5, // ツンドラは山地が多い
-      materialColor: 0xADD8E6, // 薄い雪色
-      floraDensity: 0.1, // 植物が少ないが、低木など
-      objectTypes: [
-        { type: 'snowy_tree', density: 0.08, properties: { color: 0x87CEEB } },
-        { type: 'rock', density: 0.05, properties: { color: 0x708090 } }
-      ]
-    });
+    super(
+      'Tundra',
+      'ET',
+      -5, // 寒冷
+      300, // 降水量少なめ
+      40, // 湿度低〜中
+      {
+        heightScale: 0.8, // ほぼフラット、少し起伏
+        noiseFrequency: 0.02,
+        noiseOctaves: 2,
+        // ツンドラ特有のオブジェクト
+        tundraObjects: [
+            { type: 'lichen_patch', density: 0.2, properties: { colors: [0x8FBC8F, 0x20B2AA] } }, // シーグリーン, ライトシーグリーン
+            { type: 'small_shrub', density: 0.1, properties: { color: 0x8B7355 } }, // 小さな低木
+            { type: 'moss_carpet', density: 0.3, properties: { color: 0x556B2F } } // モス
+        ]
+      },
+      {
+        density: 0.3, // 草の密度低め
+        color: new THREE.Color(0xD2B48C) // タン (土っぽい色)
+      }
+    );
   }
 
   getHeight(x, z) {
-    // ツンドラ用のノイズ（高低差が大きい）
     const perlin = new ImprovedNoise();
-    return perlin.noise(x * 0.03, 0, z * 0.03) * this.config.heightScale * 15;
+    let height = 0;
+    let amplitude = 1;
+    let frequency = this.config.noiseFrequency || 0.02;
+
+    for (let i = 0; i < (this.config.noiseOctaves || 2); i++) {
+      height += perlin.noise(x * frequency, 0, z * frequency) * amplitude;
+      amplitude *= 0.5;
+      frequency *= 2;
+    }
+    return height * (this.config.heightScale || 0.8) * 3; // 非常に平坦
   }
 
   getMaterial(x, z) {
-    // ツンドラ用マテリアル
-    return new THREE.MeshStandardMaterial({ color: this.config.materialColor });
+    const material = super.getMaterial(x, z);
+    if (material && material.uniforms) {
+      // ツンドラっぽい色 (土色〜淡い緑)
+      material.uniforms.baseTerrainColor.value = new THREE.Color(0xDAA520); // ゴールデンロッド (枯れ色)
+    }
+    return material;
   }
 
   getObjects() {
-    return this.config.objectTypes;
+    return this.config.tundraObjects || [];
+  }
+
+  getTraits() {
+      return ['Permafrost', 'Low Biodiversity', 'Short Growing Season'];
+  }
+
+  getDescription() {
+      return "A frozen biome with short growing seasons, where only hardy plants like mosses and lichens can survive.";
   }
 }

@@ -58,8 +58,12 @@
         margin-right: 15px;
       }
       @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
       }
       .loading-content {
         display: flex;
@@ -74,21 +78,20 @@
         <div>Loading game assets...</div>
       </div>
     </div>
-    
+
     <div id="canvasWrapper">
       <canvas id="gameCanvas"></canvas>
     </div>
-  
+
     <div id="ui">
       <div>位置: <span id="playerPos">0, 0, 0</span></div>
       <div>チャンク: <span id="playerChunk">0, 0, 0</span></div>
       <div>OnGround: <span id="onGround">true</span></div>
-      <div id="fpsCounter">
-        FPS: 0
-    </div>
+      <div id="fpsCounter">FPS: 0</div>
+      <div id="biomeInfo">Biome: Unknown</div>
       <div id="message"></div>
     </div>
-    
+
     <script type="importmap">
       {
         "imports": {
