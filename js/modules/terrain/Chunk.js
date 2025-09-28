@@ -1,34 +1,41 @@
 // js/modules/terrain/Chunk.js
 import * as THREE from 'three';
-import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js';
-import { BiomeManager } from '../biomes/BiomeManager.js';
+// import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js'; // 不要に
+import { BiomeManager } from '../biomes/BiomeManager.js'; // 不要に
 // import * as CANNON from 'cannon-es'; // Heightfield が不要になったため、Cannon-es のインポートも不要
 
 export class Chunk {
-    constructor(x, y, z, size, biomeManager, physicsWorld) {
+    // --- 修正: コンストラクタの引数を変更 ---
+    // biome と heights 配列を受け取るようにする
+    constructor(x, y, z, size, biome, heights, physicsWorld) {
         this.x = x;
         this.y = y;
         this.z = z;
         this.size = size;
         this.mesh = null;
-        this.objects = []; // この配列は、Chunkが管理する追加オブジェクト用 (例: 木)
+        this.objects = []; // この配列は、Chunkが管理する追加オブジェクト用
         this.isLoaded = false;
-        this.biomeManager = biomeManager;
-        this.physicsWorld = physicsWorld; // 必要に応じて削除 (Y=0のコライダーが不要なら)
+        this.biome = biome; // biome インスタンスを保持
+        this.physicsWorld = physicsWorld; // 必要に応じて削除
         // this.physicsBody = null; // Heightfield用の物理ボディは不要
+
+        // 高さデータを保持
+        this.heights = heights;
 
         // Create the chunk mesh
         this.createMesh();
     }
+    // --- 修正 ここまで ---
 
     createMesh() {
         const geometry = new THREE.BufferGeometry();
 
-        // チャンクの中心座標を使用して、バイオームを決定
-        const worldCenterX = this.x * this.size + this.size / 2;
-        const worldCenterZ = this.z * this.size + this.size / 2;
-        const biome = this.biomeManager.getBiomeAt(worldCenterX, worldCenterZ);
-        const material = biome.getMaterial(worldCenterX, worldCenterZ) || new THREE.MeshStandardMaterial({ color: 0x00aa00 });
+        // チャンクの中心座標を使用して、バイオームを決定 (すでにコンストラクタで渡されている)
+        // const worldCenterX = this.x * this.size + this.size / 2;
+        // const worldCenterZ = this.z * this.size + this.size / 2;
+        // const biome = this.biomeManager.getBiomeAt(worldCenterX, worldCenterZ);
+        const biome = this.biome; // すでに保持している biome を使用
+        const material = biome.getMaterial(this.x * this.size, this.z * this.size) || new THREE.MeshStandardMaterial({ color: 0x00aa00 });
 
         const segments = 32; // 32x32 のグリッド
         const halfSize = this.size / 2;
@@ -38,16 +45,34 @@ export class Chunk {
         const indices = [];
         const uvs = [];
 
+        // --- 修正: 外部から渡された heights 配列を使用 ---
         // Generate terrain height using Perlin noise (for visual mesh)
-        const heights = [];
+        // const heights = [];
+        // for (let z = 0; z <= segments; z++) {
+        //     heights[z] = [];
+        //     for (let x = 0; x <= segments; x++) {
+        //         const worldX = this.x * this.size + x * segmentSize;
+        //         const worldZ = this.z * this.size + z * segmentSize;
+        //
+        //         let height = biome.getHeight(worldX, worldZ);
+        //         heights[z][x] = height;
+        //
+        //         // Add vertex
+        //         vertices.push(
+        //             x * segmentSize - halfSize,
+        //             height,
+        //             z * segmentSize - halfSize
+        //         );
+        //
+        //         // Add UVs
+        //         uvs.push(x / segments, 1 - z / segments);
+        //     }
+        // }
+        // --- 修正 ここまて ---
+        // --- 修正: 代わりに this.heights 配列を使用 ---
         for (let z = 0; z <= segments; z++) {
-            heights[z] = [];
             for (let x = 0; x <= segments; x++) {
-                const worldX = this.x * this.size + x * segmentSize;
-                const worldZ = this.z * this.size + z * segmentSize;
-
-                let height = biome.getHeight(worldX, worldZ);
-                heights[z][x] = height;
+                const height = this.heights[z][x];
 
                 // Add vertex
                 vertices.push(
@@ -60,6 +85,8 @@ export class Chunk {
                 uvs.push(x / segments, 1 - z / segments);
             }
         }
+        // --- 修正 ここまで ---
+
 
         // Create faces
         for (let z = 0; z < segments; z++) {
@@ -96,12 +123,11 @@ export class Chunk {
 
         // --- 修正: Y=0 のチャンクのみにオブジェクトを配置 ---
         // 物理コライダーは Player.js のロジックで処理するため、ここでは生成しない
-        // biome.generateObjectsInChunk とその結果の処理を削除
         if (this.y === 0) {
-            // ここでは、WorldGenerator が生成したオブジェクトを Chunk に追加する
-            // 例えば、Tree.js が生成した木は WorldGenerator から World.js を経由して
-            // この Chunk インスタンスの addObject メソッドで追加される
-            // この if ブロック内は、必要に応じてその他のチャンク固有の処理を記述
+            // biome.generateObjectsInChunk は、Chunk が持つ heights を参照できるようにするか、
+            // World から渡されたオブジェクトリストを使用するか。
+            // ここでは、World が生成したオブジェクトを addObject で追加する想定
+            // (このロジックは World.js で処理される)
         }
         // --- 修正 ここまで ---
 
@@ -110,7 +136,6 @@ export class Chunk {
     }
 
     // Add objects to this chunk (trees, rocks, etc.)
-    // WorldGenerator から呼び出される
     addObject(object) {
         if (this.mesh && object) {
             this.mesh.add(object);
