@@ -27,8 +27,7 @@ export class Vine {
              return;
         }
 
-        // ツタの密度 (木に付随)
-        const numVines = Math.floor(3 + Math.random() * 5); // 3~7個
+        const numVines = Math.floor(3 + Math.random() * 5);
 
         for (let i = 0; i < numVines; i++) {
             const localX = Math.random() * chunkSize;
@@ -38,8 +37,7 @@ export class Vine {
 
             const terrainHeight = this.world.getWorldTerrainHeightAt(worldX, worldZ);
 
-            // ツタのメッシュを生成
-            const vineMesh = this.createVineMesh(terrainHeight);
+            const vineMesh = this.createMesh(terrainHeight); // <-- ここも変更
 
             vineMesh.position.set(
                 localX - chunkSize / 2,
@@ -47,12 +45,19 @@ export class Vine {
                 localZ - chunkSize / 2
             );
 
-            this.world.addTreeToChunk(cx, cy, cz, vineMesh); // Tree用のメソッドに一時的に追加
-            // 将来的には、addVineToChunk などの専用メソッドを作成するのが望ましい
+            this.world.addTreeToChunk(cx, cy, cz, vineMesh);
         }
     }
 
-    createVineMesh(groundY) {
+    // --- 修正: createVineMesh メソッドの名前を createMesh に変更 ---
+    // または、createMesh メソッドを新規追加し、内部で createVineMesh を呼び出す
+    // ここでは、createVineMesh のロジックを createMesh に移動する方法を採用
+    /**
+     * ツタのメッシュを生成します。
+     * @param {number} groundY - 地面のY座標
+     * @returns {THREE.Group} 生成されたツタのメッシュ
+     */
+    createMesh(groundY) { // <-- メソッド名を createMesh に変更
         // ツタは細長い平面や、細いシリンダーチェーンで表現
         const group = new THREE.Group();
 
@@ -65,6 +70,8 @@ export class Vine {
         let parentSegment = null;
 
         for (let i = 0; i < numSegments; i++) {
+            // CapsuleGeometry は、Three.js r120 以降で利用可能
+            // 古いバージョンの場合は、SphereBufferGeometry 2つと CylinderBufferGeometry 1つで構成する必要あり
             const segmentGeometry = new THREE.CapsuleGeometry(vineRadius, segmentLength, 4, 8);
             const segmentMaterial = new THREE.MeshStandardMaterial({
                 color: 0x32CD32, // ライムグリーン
@@ -93,4 +100,9 @@ export class Vine {
 
         return group;
     }
+    // --- 修正 ここまて ---
+
+    // --- 削除: 古い createVineMesh メソッド ---
+    // createVineMesh(groundY) { ... } // このメソッドは削除するか、createMesh 内にロジックを移動
+    // --- 削除 ここまて ---
 }

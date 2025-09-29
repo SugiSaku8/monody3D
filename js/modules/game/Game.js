@@ -22,39 +22,51 @@ export class Game {
         // Set up renderer
         this.setupRenderer();
 
-        // Set up event listeners
+        // Set up event listeners (キー入力は Player が処理)
         this.setupEventListeners();
 
-        // --- 追加: 時間管理 ---
-        this.gameTimeSeconds = 0; // ゲーム内経過秒
-        this.gameSpeedFactor = 82.5; // 現実秒 / ゲーム秒 (33 * 60 / 24 / 60)
-        this.currentGameHour = 0;
-        this.currentGameMinute = 0;
-        // --- 追加 ここまで ---
+          // --- 修正: FPS計算用の変数を初期化 ---
+          this.frameCount = 0;
+          this.lastFpsUpdate = performance.now(); // 高精度タイマーを使用
+          this.currentFps = 0;
+          // --- 修正 ここまて ---
+  
+          // --- 修正: FPS表示用のDOM要素を取得 ---
+          this.fpsElement = document.getElementById('fpsCounter');
+          if (!this.fpsElement) {
+               console.warn("FPS counter element (id='fpsCounter') not found in HTML. Please add it to display FPS.");
+          }
+          // --- 修正 ここまて ---
 
-        // FPS計算用の変数
-        this.frameCount = 0;
-        this.lastFpsUpdate = performance.now();
-        this.currentFps = 0;
-        this.fpsElement = document.getElementById('fpsCounter');
-        if (!this.fpsElement) {
-             console.warn("FPS counter element (id='fpsCounter') not found in HTML. Please add it to display FPS.");
-        }
-
-        // Start game loop
-        this.animate();
+        // --- 修正: 非同期で初期化 ---
+        this.initializeAsync();
+        // --- 修正 ここまて ---
     }
+
+    // --- 追加: 非同期初期化メソッド ---
+    async initializeAsync() {
+        try {
+            // --- 修正: World の初期化 (プリロードを含む) ---
+            await this.world.initialize(); // ここで Preloader が実行される
+            // --- 修正 ここまて ---
+
+            // --- 修正: プリロード後にゲームループを開始 ---
+            // Start game loop
+            this.animate();
+            // --- 修正 ここまて ---
+        } catch (error) {
+            console.error("Failed to initialize the game:", error);
+            // エラー処理 (例: エラーメッセージを画面に表示)
+        }
+    }
+    // --- 追加 ここまて ---
 
     setupRenderer() {
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.shadowMap.enabled = true;
-        // --- 追加: レンダラーのクリア色を空色に近い色に設定 ---
-        this.renderer.setClearColor( 0x87CEEB ); // スカイブルー
-        // --- 追加 ここまで ---
         document.getElementById('canvasWrapper').appendChild(this.renderer.domElement);
     }
-
 
     setupEventListeners() {
         window.addEventListener('resize', this.onWindowResize.bind(this));
@@ -102,15 +114,19 @@ export class Game {
         const now = performance.now();
         const deltaMs = now - this.lastFpsUpdate;
 
-        if (deltaMs >= 1000) { // 1秒経過したらFPSを計算
+       if (deltaMs >= 1000) {
+            // 5. FPSを計算: (フレーム数 * 1000) / 経過時間(ms)
             this.currentFps = Math.round((this.frameCount * 1000) / deltaMs);
-            this.frameCount = 0;
-            this.lastFpsUpdate = now;
 
-            // FPSとゲーム内時刻をHTML要素に表示
+            // 6. 次の計算のためにカウンターと時刻をリセット
+            this.frameCount = 0;
+            this.lastFpsUpdate = now; // 7. 最終更新時刻を現在時刻に更新
+
+            // 8. FPSをHTML要素に表示
             if (this.fpsElement) {
-                this.fpsElement.textContent = `FPS: ${this.currentFps} | Time: ${String(this.currentGameHour).padStart(2, '0')}:${String(this.currentGameMinute).padStart(2, '0')}`;
+                this.fpsElement.textContent = `FPS: ${this.currentFps}`;
             }
+            // console.log(`FPS: ${this.currentFps}`); // デバッグ用
         }
         // --- 追加 ここまで ---
     }

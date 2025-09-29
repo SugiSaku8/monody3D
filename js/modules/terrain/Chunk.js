@@ -5,28 +5,109 @@ import { BiomeManager } from '../biomes/BiomeManager.js'; // 不要に
 // import * as CANNON from 'cannon-es'; // Heightfield が不要になったため、Cannon-es のインポートも不要
 
 export class Chunk {
-    // --- 修正: コンストラクタの引数を変更 ---
-    // biome と heights 配列を受け取るようにする
-    constructor(x, y, z, size, biome, heights, physicsWorld) {
+    constructor(x, y, z, size, biome, heights, physicsWorld, preloadedData = null) {
         this.x = x;
         this.y = y;
         this.z = z;
         this.size = size;
         this.mesh = null;
-        this.objects = []; // この配列は、Chunkが管理する追加オブジェクト用
+        this.objects = [];
         this.isLoaded = false;
-        this.biome = biome; // biome インスタンスを保持
-        this.physicsWorld = physicsWorld; // 必要に応じて削除
-        // this.physicsBody = null; // Heightfield用の物理ボディは不要
+        this.biome = biome;
+        this.physicsWorld = physicsWorld;
+        this.heights = heights; // 以前追加した heights 配列
 
-        // 高さデータを保持
-        this.heights = heights;
+        if (preloadedData) {
+            // --- 修正: プリロードされたデータからメッシュとオブジェクトを生成 ---
+            console.log(`Chunk (${x}, ${y}, ${z}) using preloaded data.`);
+            this.mesh = new THREE.Mesh(preloadedData.geometry, preloadedData.material);
+            this.mesh.position.set(
+                this.x * this.size + this.size / 2,
+                this.y * this.size,
+                this.z * this.size + this.size / 2
+            );
+            this.mesh.castShadow = true;
+            this.mesh.receiveShadow = true;
 
-        // Create the chunk mesh
-        this.createMesh();
+            // プリロードされた Feature データから InstancedMesh を作成
+            if (preloadedData.featureData) {
+                this.createInstancedMeshesFromPreloadedData(preloadedData.featureData);
+            }
+            // --- 修正 ここまて ---
+        } else {
+            // --- 修正: プリロードデータがない場合は通常通り生成 ---
+            console.log(`Chunk (${x}, ${y}, ${z}) generating mesh on-demand.`);
+            this.createMesh(); // 以前の createMesh メソッドを呼び出す
+            // --- 修正 ここまて ---
+        }
+
+        this.isLoaded = true;
     }
+
+
     // --- 修正 ここまで ---
 
+    createInstancedMeshesFromPreloadedData(featureData) {
+        // featureData.trees から木の InstancedMesh を作成
+        if (featureData.trees && featureData.trees.length > 0) {
+            // 木用のジオメトリとマテリアル (例: ジャングルの木)
+            // 実際には、objDef.type に応じて異なるジオメトリ/マテリアルを選択する必要がある
+            // ここでは、簡略化のため、共通の木のジオメトリを使用
+            const treeGeometry = new THREE.CylinderGeometry(0.1, 0.15, 2, 8); // 仮の幹
+            const treeMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+
+            const treeInstancedMesh = new THREE.InstancedMesh(treeGeometry, treeMaterial, featureData.trees.length);
+
+            featureData.trees.forEach((data, index) => {
+                treeInstancedMesh.setMatrixAt(index, data.matrix);
+                if (data.color) {
+                    treeInstancedMesh.setColorAt(index, data.color);
+                }
+            });
+            treeInstancedMesh.instanceMatrix.needsUpdate = true;
+            if (treeInstancedMesh.instanceColor) {
+                 treeInstancedMesh.instanceColor.needsUpdate = true;
+            }
+            treeInstancedMesh.castShadow = true;
+            treeInstancedMesh.receiveShadow = true;
+            this.addObject(treeInstancedMesh); // addObject メソッドでチャンクに追加
+            console.log(`Added preloaded tree InstancedMesh with ${featureData.trees.length} instances.`);
+        }
+
+        // featureData.grass から草の InstancedMesh を作成
+        if (featureData.grass && featureData.grass.length > 0) {
+            // 草用のジオメトリとマテリアル (例: 平面)
+            const grassGeometry = new THREE.PlaneGeometry(0.1, 0.3); // 仮の草
+            const grassMaterial = new THREE.MeshStandardMaterial({
+                color: 0x7CFC00,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.9
+            });
+
+            const grassInstancedMesh = new THREE.InstancedMesh(grassGeometry, grassMaterial, featureData.grass.length);
+
+            featureData.grass.forEach((data, index) => {
+                grassInstancedMesh.setMatrixAt(index, data.matrix);
+                if (data.color) {
+                    grassInstancedMesh.setColorAt(index, data.color);
+                }
+            });
+            grassInstancedMesh.instanceMatrix.needsUpdate = true;
+            if (grassInstancedMesh.instanceColor) {
+                 grassInstancedMesh.instanceColor.needsUpdate = true;
+            }
+            grassInstancedMesh.castShadow = false; // 草は影を落とさないことが多い
+            grassInstancedMesh.receiveShadow = true;
+            this.addObject(grassInstancedMesh); // addObject メソッドでチャンクに追加
+            console.log(`Added preloaded grass InstancedMesh with ${featureData.grass.length} instances.`);
+        }
+
+        // ... (他の Feature も同様に処理) ...
+    }
+
+
+    
     createMesh() {
         const geometry = new THREE.BufferGeometry();
 

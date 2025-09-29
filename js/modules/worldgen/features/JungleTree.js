@@ -43,7 +43,7 @@ export class JungleTree {
             const terrainHeight = this.world.getWorldTerrainHeightAt(worldX, worldZ);
 
             // ジャングルの木のメッシュを生成
-            const treeMesh = this.createJungleTreeMesh(terrainHeight);
+            const treeMesh = this.createMesh(terrainHeight);
 
             // チャンクのローカル座標に変換して追加
             treeMesh.position.set(
@@ -51,62 +51,80 @@ export class JungleTree {
                 terrainHeight,
                 localZ - chunkSize / 2
             );
+            treeMesh.castShadow = true;
+            treeMesh.receiveShadow = true;
 
             // World に追加 (World.js の addTreeToChunk メソッド経由)
             this.world.addTreeToChunk(cx, cy, cz, treeMesh);
         }
     }
 
-    // ジャングルの木のメッシュを生成するメソッド
-    createJungleTreeMesh(groundY) {
-        const group = new THREE.Group();
+  
+    // --- 追加: WorldGenerator から直接呼び出される createMesh メソッド ---
+    /**
+     * ジャングルの木のメッシュを生成します。
+     * @param {number} groundY - 地面のY座標
+     * @returns {THREE.Group} 生成された木のメッシュ
+     */
+   // js/modules/worldgen/features/JungleTree.js
+// ...
+createMesh(groundY) {
+    const group = new THREE.Group();
 
-        // 胴体 (複数の幹をシミュレート)
-        const numTrunks = 2 + Math.floor(Math.random() * 2); // 2~3本の幹
-        for (let i = 0; i < numTrunks; i++) {
-            const trunkHeight = 8 + Math.random() * 7; // 8~15m
-            const trunkRadiusTop = 0.4 + Math.random() * 0.3; // 上部 0.4~0.7m
-            const trunkRadiusBottom = trunkRadiusTop + 0.2 + Math.random() * 0.3; // 下部は太い
+    // 胴体 (複数の幹をシミュレート)
+    const numTrunks = 2 + Math.floor(Math.random() * 2);
+    let tallestTrunkHeight = 0; // 最も高い幹の高さを記録
+    for (let i = 0; i < numTrunks; i++) {
+        const trunkHeight = 8 + Math.random() * 7;
+        const trunkRadiusTop = 0.4 + Math.random() * 0.3;
+        const trunkRadiusBottom = trunkRadiusTop + 0.2 + Math.random() * 0.3;
 
-            const trunkGeometry = new THREE.CylinderGeometry(
-                trunkRadiusTop,
-                trunkRadiusBottom,
-                trunkHeight,
-                8
-            );
-            const trunkMaterial = new THREE.MeshStandardMaterial({
-                color: 0x8B4513, // 茶色
-                roughness: 0.9,
-                metalness: 0.0
-            });
-            const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
-            trunk.position.y = trunkHeight / 2 + groundY;
-            // 幹の位置を少しずらす
-            trunk.position.x += (Math.random() - 0.5) * 1.5;
-            trunk.position.z += (Math.random() - 0.5) * 1.5;
-            group.add(trunk);
-        }
-
-        // 葉 (巨大な球体 or 複数の球体)
-        const leavesRadius = 4 + Math.random() * 3; // 4~7m
-        const leavesGeometry = new THREE.SphereGeometry(leavesRadius, 6, 6);
-        const leavesMaterial = new THREE.MeshStandardMaterial({
-            color: 0x228B22, // 濃い緑
-            roughness: 0.8,
+        const trunkGeometry = new THREE.CylinderGeometry(
+            trunkRadiusTop,
+            trunkRadiusBottom,
+            trunkHeight,
+            8
+        );
+        const trunkMaterial = new THREE.MeshStandardMaterial({
+            color: 0x8B4513,
+            roughness: 0.9,
             metalness: 0.0
         });
-        const leaves = new THREE.Mesh(leavesGeometry, leavesMaterial);
-        leaves.position.y = 12 + groundY; // 葉は高い位置
-        group.add(leaves);
+        const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+        trunk.position.y = trunkHeight / 2; // <-- グループ内の相対位置: 底面が Y=0 に
+        // trunk.position.y = trunkHeight / 2 + groundY; // 以前のコード (中心が groundY に)
+        trunk.position.x += (Math.random() - 0.5) * 1.5;
+        trunk.position.z += (Math.random() - 0.5) * 1.5;
+        group.add(trunk);
 
-        // 少し小さな葉を追加して、層状にする
-        const smallLeavesGeometry = new THREE.SphereGeometry(leavesRadius * 0.7, 5, 5);
-        const smallLeaves = new THREE.Mesh(smallLeavesGeometry, leavesMaterial);
-        smallLeaves.position.y = 10 + groundY;
-        smallLeaves.position.x += (Math.random() - 0.5) * 2;
-        smallLeaves.position.z += (Math.random() - 0.5) * 2;
-        group.add(smallLeaves);
-
-        return group;
+        if (trunkHeight > tallestTrunkHeight) tallestTrunkHeight = trunkHeight;
     }
+
+    // 葉
+    const leavesRadius = 4 + Math.random() * 3;
+    const leavesGeometry = new THREE.SphereGeometry(leavesRadius, 6, 6);
+    const leavesMaterial = new THREE.MeshStandardMaterial({
+        color: 0x228B22,
+        roughness: 0.8,
+        metalness: 0.0
+    });
+    const leaves = new THREE.Mesh(leavesGeometry, leavesMaterial);
+    // 葉は最も高い幹の頂上に配置
+    leaves.position.y = tallestTrunkHeight; // <-- グループ内の相対位置
+    // leaves.position.y = tallestTrunkHeight + groundY; // 以前のコード
+    group.add(leaves);
+
+    const smallLeavesGeometry = new THREE.SphereGeometry(leavesRadius * 0.7, 5, 5);
+    const smallLeaves = new THREE.Mesh(smallLeavesGeometry, leavesMaterial);
+    smallLeaves.position.y = tallestTrunkHeight - 2; // 少し下に
+    smallLeaves.position.x += (Math.random() - 0.5) * 2;
+    smallLeaves.position.z += (Math.random() - 0.5) * 2;
+    group.add(smallLeaves);
+
+    // --- 重要: グループ全体の位置を設定して、足元が groundY に来るようにする ---
+    group.position.y = groundY; // グループの原点 (Y=0) を地面の高さに
+
+    return group;
+}
+    // --- 追加 ここまて ---
 }

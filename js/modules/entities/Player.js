@@ -141,6 +141,8 @@ export class Player {
         if (this.isOnGround) {
             this.body.velocity.y = this.JUMP_FORCE;
             this.isOnGround = false;
+            this.checkGroundContactWithWorldHeight();
+
             // Play jump sound
             // this.audioManager.playSound('jump');
         }
@@ -188,7 +190,6 @@ export class Player {
         this.body.velocity.z = this.moveDirection.z;
         // Y速度は、ジャンプや重力、または接地補正で変更
     }
-
     // --- 追加: World.getWorldTerrainHeightAt を使用した接地判定 ---
     checkGroundContactWithWorldHeight() {
         const playerPos = this.body.position;

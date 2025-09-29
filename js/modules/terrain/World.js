@@ -1,11 +1,10 @@
-// js/modules/terrain/terrain/World.js
+// js/modules/terrain/World.js
 import * as THREE from 'three';
 import { Chunk } from './Chunk.js';
+import { BiomeManager } from '../biomes/BiomeManager.js';
 import { PhysicsWorld } from '../physics/PhysicsWorld.js';
 import { WorldGenerator } from '../worldgen/WorldGenerator.js';
-import { TropicalRainforestBiome } from '../biomes/TropicalRainforestBiome.js';
-import { ForestBiome } from '../biomes/ForestBiome.js'; // 必要に応じて追加
-import { BiomeManager } from '../biomes/BiomeManager.js';
+import { Preloader } from '../worldgen/Preloader.js';
 export class World {
     constructor(scene) {
         this.scene = scene;
@@ -13,46 +12,28 @@ export class World {
         this.CHUNK_SIZE = 32;
         this.RENDER_DISTANCE = 2;
 
-        // --- 修正: BiomeManager を初期化 ---
+        // BiomeManager を初期化
         this.biomeManager = new BiomeManager();
+
+        // PhysicsWorld を初期化して保持
+        this.physicsWorld = new PhysicsWorld();
+
+        // Set up lighting
+        this.setupLighting();
+
+        // --- 修正: Preloader を初期化 ---
+        this.preloader = new Preloader(this.biomeManager, new WorldGenerator(this, this.biomeManager, this.physicsWorld)); // WorldGenerator は一時的にインスタンス化
         // --- 修正 ここまて ---
 
-        // --- 追加: バイオームを BiomeManager に登録 ---
-        this.registerBiomes();
-        // --- 追加 ここまて ---
-
-        this.physicsWorld = new PhysicsWorld();
-        this.setupLighting();
-        this.worldGenerator = new WorldGenerator(this, this.biomeManager, this.physicsWorld);
+        // --- 修正: WorldGenerator は Preloader の WorldGenerator を使う ---
+        // this.worldGenerator = new WorldGenerator(this, this.biomeManager, this.physicsWorld);
+        this.worldGenerator = this.preloader.worldGenerator; // Preloader が持つ WorldGenerator を再利用
+        // --- 修正 ここまて ---
     }
 
-    // --- 追加: バイオームを登録するメソッド ---
-    registerBiomes() {
-        // 1. バイオームクラスのインスタンスを生成
-        const tropicalRainforestBiome = new TropicalRainforestBiome();
-        const forestBiome = new ForestBiome(); // フォールバック用
-        // const savannaBiome = new SavannaBiome();
-        // ... (他のバイオームも同様にインスタンス化)
-
-        // 2. BiomeManager に登録
-        this.biomeManager.registerBiome('Af', tropicalRainforestBiome);
-        this.biomeManager.registerBiome('Forest', forestBiome); // フォールバック
-        // this.biomeManager.registerBiome('Aw', savannaBiome);
-        // ... (他のバイオームも登録)
-        console.log("Biomes registered with BiomeManager.");
-    }
-    getWorldTerrainHeightAt(x, z) {
-        // 1. バイオームを取得 (高度0として仮計算)
-        const tempBiome = this.biomeManager.getBiomeAt(x, 0, z); // 一時的な取得
-        // 2. そのバイオームのgetHeightで仮の高さを計算
-        const tempHeight = tempBiome.getHeight(x, z);
-        // 3. その高さを使って、正式なバイオームを取得
-        const finalBiome = this.biomeManager.getBiomeAt(x, tempHeight, z);
-        // 4. 正式なバイオームのgetHeightで最終高さを計算
-        return finalBiome.getHeight(x, z);
-        // 注: これは理想的ではない。最適化の余地あり。
-        // 例えば、BiomeManagerが地形高さを直接計算するか、
-        // 別の方法で高さとバイオームを同時計算する仕組みが必要。
+    async initialize() {
+        await this.preloader.preload();
+        console.log("World initialization complete.");
     }
 
     setupLighting() {
@@ -70,7 +51,7 @@ export class World {
             }
         `;
 
-        // スカイドームシェーダーのフラグメントシェーダー (大気散乱 + 雲)
+        // スカイドームシェーダーのフラグメントシェーダー (大気散乱風)
         const skyFragmentShader = `
             varying vec3 vWorldPos;
             varying vec3 vNormal; // 視線方向 (正規化済み)
@@ -212,17 +193,14 @@ export class World {
             }
         `;
 
-        // --- 修正: 太陽の方向と位置の初期値を計算 ---
-        // 初期 gameTime は 0.25 (日の出) とする
-        this.gameTime = 0.25;
-        const initialSunInfo = this.calculateSunPositionAndDirection(this.gameTime);
-        const initialSunDirection = initialSunInfo.direction;
-        const initialSunPosition = initialSunInfo.position;
-        // --- 修正 ここまで ---
+        // 太陽の方向 (地面のシェーダーと一致させる)
+        const sunDirection = new THREE.Vector3(0.2, 1.0, 0.0).normalize();
+        // 太陽の位置 (非常に遠くに配置)
+        const sunPosition = sunDirection.clone().multiplyScalar(10000);
 
         const skyMaterial = new THREE.ShaderMaterial({
             uniforms: {
-                sunDirection: { value: initialSunDirection },
+                sunDirection: { value: sunDirection },
                 baseSkyColor: { value: new THREE.Color(0.5, 0.7, 1.0) }, // 基本の青空色
                 atmosphereDensity: { value: 0.2 }, // 水蒸気量などの影響
                 // 雲用のuniform
@@ -237,82 +215,39 @@ export class World {
             depthTest: false
         });
 
-        this.skyDome = new THREE.Mesh(skyDomeGeometry, skyMaterial); // this. で参照できるように
-        this.scene.add(this.skyDome);
+        const skyDome = new THREE.Mesh(skyDomeGeometry, skyMaterial);
+        this.scene.add(skyDome);
 
         // --- 修正: 太陽 (ポイントライト) ---
         const sunLightIntensity = 1.5;
         const sunLightColor = 0xffffff;
-        // const sunLightPosition = initialSunPosition; // これは上で定義済み
+        // const sunLightPosition = sunDirection.clone().multiplyScalar(10000); // これは上で定義済み
 
-        this.sunLight = new THREE.PointLight(sunLightColor, sunLightIntensity, 0, 2);
-        this.sunLight.position.copy(initialSunPosition); // 定義済みの位置を使用
-        this.scene.add(this.sunLight);
-        // --- 修正 ここまで ---
+        const sunLight = new THREE.PointLight(sunLightColor, sunLightIntensity, 0, 2);
+        sunLight.position.copy(sunPosition); // 定義済みの位置を使用
+        this.scene.add(sunLight);
 
         // --- 修正: 影用の方向光 ---
-        this.directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
-        this.directionalLight.position.copy(initialSunPosition); // 定義済みの位置を使用
-        this.directionalLight.position.normalize().multiplyScalar(10); // シーン内の適当な位置に
-        this.directionalLight.castShadow = true;
-        this.directionalLight.shadow.mapSize.width = 1014;
-        this.directionalLight.shadow.mapSize.height = 1024;
-        this.directionalLight.shadow.camera.left = -50;
-        this.directionalLight.shadow.camera.right = 50;
-        this.directionalLight.shadow.camera.top = 50;
-        this.directionalLight.shadow.camera.bottom = -50;
-        this.directionalLight.shadow.camera.near = 0.25;
-        this.directionalLight.shadow.camera.far = 250;
-        this.scene.add(this.directionalLight);
-        // --- 修正 ここまで ---
-
-        // --- 修正: 視覚的な太陽オブジェクト (距離と半径を調整) ---
-        const sunVisualRadius = 50; // 半径を大きく
-        const sunVisualDistance = 1000; // 距離を短く
-        const sunVisualGeometry = new THREE.SphereGeometry(sunVisualRadius, 16, 16);
-        const sunVisualMaterial = new THREE.MeshBasicMaterial({
-            color: 0xFFFF00, // 明るい黄色
-            emissive: 0xFFFF00, // 自己発光色も黄色
-            emissiveIntensity: 1.0 // 自己発光の強さ
-        });
-        this.sunVisual = new THREE.Mesh(sunVisualGeometry, sunVisualMaterial);
-        // 初期位置は、初期の太陽方向 * 距離
-        this.sunVisual.position.copy(initialSunDirection.clone().multiplyScalar(sunVisualDistance));
-        this.scene.add(this.sunVisual);
-        // --- 修正 ここまで ---
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        directionalLight.position.copy(sunPosition); // 定義済みの位置を使用
+        directionalLight.position.normalize().multiplyScalar(10); // シーン内の適当な位置に
+        directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
+        directionalLight.shadow.camera.left = -100;
+        directionalLight.shadow.camera.right = 100;
+        directionalLight.shadow.camera.top = 100;
+        directionalLight.shadow.camera.bottom = -100;
+        directionalLight.shadow.camera.near = 0.5;
+        directionalLight.shadow.camera.far = 500;
+        this.scene.add(directionalLight);
 
         // --- 修正: 環境光 ---
-        const ambientLight = new THREE.AmbientLight(0x404040, 1.14);
+        const ambientLight = new THREE.AmbientLight(0x404040, 1.0); // 強度を上げて影を明るく
         this.scene.add(ambientLight);
         // --- 修正 ここまで ---
     }
 
-    // --- 追加: ゲーム内時間に基づいて太陽の方向と位置を計算するメソッド ---
-    calculateSunPositionAndDirection(timeOfDay) {
-        // timeOfDay: 0.0 (真夜中) から 1.0 (次の真夜中) まで
-        // 0.25 = 日の出, 0.5 = 昼, 0.75 = 日没
-
-        // 角度をラジアンに変換 (0 -> 0度, 1.0 -> 360度)
-        const angle = timeOfDay * Math.PI * 2;
-
-        // 太陽の方向を計算 (Y-Z平面で回転, Yが上)
-        // 例: 0.25 (日の出) -> angle = PI/2 -> dir = (0, 1, 0)
-        //     0.5 (昼) -> angle = PI -> dir = (0, 0, -1)
-        //     0.75 (日没) -> angle = 3PI/2 -> dir = (0, -1, 0)
-        const sunDirection = new THREE.Vector3(
-            0, // X成分は固定 (南北方向に動かない)
-            Math.sin(angle),
-            -Math.cos(angle) // Z成分を -cos にして、北(+)から南(-)へ動くように
-        ).normalize();
-
-        // 視覚的な太陽の位置 (スカイドームの内側に配置)
-        // 距離はスカイドームの半径より少し内側にする
-        const sunVisualDistance = 4900;
-        const sunPosition = sunDirection.clone().multiplyScalar(sunVisualDistance);
-
-        return { direction: sunDirection, position: sunPosition };
-    }
-    // --- 追加 ここまで ---
 
     getChunkKey(x, y, z) {
         return `${x},${y},${z}`;
@@ -325,48 +260,66 @@ export class World {
 
     loadChunk(x, y, z) {
         const key = this.getChunkKey(x, y, z);
-    
+
         if (this.chunks.has(key)) {
-          return this.chunks.get(key);
+            return this.chunks.get(key);
         }
-    
-        // --- 修正: チャンクの高さデータを事前に計算 ---
-        const CHUNK_SIZE = this.CHUNK_SIZE;
-        const segments = 32;
-        const segmentSize = CHUNK_SIZE / segments;
-        const heights = [];
-    
-        for (let z_seg = 0; z_seg <= segments; z_seg++) {
-          heights[z_seg] = [];
-          for (let x_seg = 0; x_seg <= segments; x_seg++) {
-            const worldX = x * CHUNK_SIZE + x_seg * segmentSize;
-            const worldZ = z * CHUNK_SIZE + z_seg * segmentSize;
-    
-            // BiomeManager から高さを取得 (Y=0 での高さを基準)
-            const heightResult = this.biomeManager.getBiomeAndHeightAt(worldX, worldZ);
-            heights[z_seg][x_seg] = heightResult.height;
-          }
+
+        // --- 修正: プリロードされたデータが存在するかチェック ---
+        const preloadedData = this.preloader.getPreloadedChunkData(x, y, z);
+        // --- 修正 ここまて ---
+
+        let chunk;
+        if (preloadedData) {
+            // --- 修正: プリロードされたデータからチャンクを生成 ---
+            console.log(`Using preloaded data for chunk (${x}, ${y}, ${z})`);
+            chunk = new Chunk(x, y, z, this.CHUNK_SIZE, preloadedData.biome, preloadedData.heights, this.physicsWorld, preloadedData); // preloadedData を渡す
+            // --- 修正 ここまて ---
+        } else {
+            // --- 修正: プリロードデータがない場合は通常通り生成 ---
+            console.log(`Generating chunk (${x}, ${y}, ${z}) on-demand`);
+            const CHUNK_SIZE = this.CHUNK_SIZE;
+            const segments = 32;
+            const segmentSize = this.CHUNK_SIZE / segments;
+            const heights = [];
+
+            for (let z_seg = 0; z_seg <= segments; z_seg++) {
+                heights[z_seg] = [];
+                for (let x_seg = 0; x_seg <= segments; x_seg++) {
+                    const worldX = x * this.CHUNK_SIZE + x_seg * segmentSize;
+                    const worldZ = z * this.CHUNK_SIZE + z_seg * segmentSize;
+                    const heightResult = this.biomeManager.getBiomeAndHeightAt(worldX, 0, worldZ); // Y=0での高さ
+                    heights[z_seg][x_seg] = heightResult.height;
+                }
+            }
+
+            const biomeResult = this.biomeManager.getBiomeAndHeightAt(x * this.CHUNK_SIZE + this.CHUNK_SIZE / 2, 0, z * this.CHUNK_SIZE + this.CHUNK_SIZE / 2); // Y=0での高さ
+            const biome = biomeResult.biome;
+
+            chunk = new Chunk(x, y, z, this.CHUNK_SIZE, biome, heights, this.physicsWorld);
+            // --- 修正 ここまて ---
         }
-    
-        // biomeManager から biome インスタンスを取得
-        const biomeResult = this.biomeManager.getBiomeAndHeightAt(x * CHUNK_SIZE + CHUNK_SIZE / 2, z * CHUNK_SIZE + CHUNK_SIZE / 2);
-        const biome = biomeResult.biome;
-    
-        // biomeManager と physicsWorld を渡す (必要に応じて、Y=0以外のチャンクに物理コライダーがある場合)
-        // biome と heights を Chunk コンストラクタに渡す
-        const chunk = new Chunk(x, y, z, CHUNK_SIZE, biome, heights, this.physicsWorld);
-        // --- 修正 ここまで ---
+
         this.chunks.set(key, chunk);
         this.scene.add(chunk.mesh);
-    
-        // チャンクロード時に WorldGenerator で Feature を生成
-        if (y === 0) { // 例として Y=0 のチャンクのみに限定
-          this.worldGenerator.generateFeaturesInChunk(x, y, z, CHUNK_SIZE);
+
+        if (y === 0) {
+            // Y=0 のチャンクのみに Feature を生成
+            // プリロードデータがある場合は、すでに Feature も含まれているため、
+            // ここでは WorldGenerator による追加生成はスキップするか、
+            // preloadedData.featureData をチャンクに適用するロジックが必要
+            if (!preloadedData) {
+                 this.worldGenerator.generateFeaturesInChunk(x, y, z, this.CHUNK_SIZE);
+                 this.worldGenerator.generateBiomeSpecificObjectsInChunk(x, y, z, this.CHUNK_SIZE);
+            } else {
+                // preloadedData.featureData をチャンクに適用
+                // 例: chunk.applyPreloadedFeatureData(preloadedData.featureData);
+                console.log(`Applied preloaded feature data to chunk (${x}, ${y}, ${z})`);
+            }
         }
-    
+
         return chunk;
-      }
-    
+    }
 
     unloadChunk(x, y, z) {
         const key = this.getChunkKey(x, y, z);
@@ -379,48 +332,13 @@ export class World {
         }
     }
 
-    // --- 修正: update メソッドで gameTime を更新し、太陽を動かす ---
     update(playerPosition) {
-        // --- 追加: ゲーム内時間を更新 (例: 1日 = 10分) ---
-        this.gameTime += 0.0001; // 適宜調整
-        if (this.gameTime >= 1.0) {
-            this.gameTime = 0.0;
-        }
-        // --- 追加 ここまで ---
-
-        // --- 追加: 太陽の位置と方向を計算 ---
-        const sunInfo = this.calculateSunPositionAndDirection(this.gameTime);
-        const sunDirection = sunInfo.direction;
-        const sunPosition = sunInfo.position;
-        // --- 追加 ここまで ---
-
-        // --- 追加: 視覚的な太陽の位置を更新 ---
-        // 視覚的な太陽は、スカイドームの内側に配置する (距離をスカイドーム半径より少し小さく)
-        const sunVisualDistance = 4900;
-        this.sunVisual.position.copy(sunDirection.clone().multiplyScalar(sunVisualDistance));
-        // --- 追加 ここまで ---
-
-        // --- 追加: ポイントライトと方向光の位置を更新 ---
-        this.sunLight.position.copy(sunPosition);
-        this.directionalLight.position.copy(sunPosition);
-        this.directionalLight.position.normalize().multiplyScalar(10); // シーン内の適当な位置に
-        // --- 追加 ここまで ---
-
-        // --- 追加: スカイドームシェーダーの sunDirection uniform を更新 ---
-        this.skyDome.material.uniforms.sunDirection.value.copy(sunDirection);
-        // --- 追加 ここまで ---
-
-        // --- 追加: 雲のオフセットを更新 (太陽の動きに連動) ---
-        // this.skyDome.material.uniforms.cloudOffset.value.x += 0.01; // 適宜調整
-        // this.skyDome.material.uniforms.cloudOffset.value.z += 0.005; // 適宜調整
-        // --- 追加 ここまで ---
-
-
-        // --- 修正: チャンクの更新ロジック ---
+        // Get player's chunk coordinates
         const playerChunkX = Math.floor(playerPosition.x / this.CHUNK_SIZE);
         const playerChunkY = Math.floor(playerPosition.y / this.CHUNK_SIZE);
         const playerChunkZ = Math.floor(playerPosition.z / this.CHUNK_SIZE);
 
+        // Determine which chunks should be loaded
         const chunksToLoad = new Set();
 
         for (let dx = -this.RENDER_DISTANCE; dx <= this.RENDER_DISTANCE; dx++) {
@@ -430,14 +348,17 @@ export class World {
                     const cy = playerChunkY + dy;
                     const cz = playerChunkZ + dz;
 
+                    // --- 修正: Y=0 のチャンクのみロード ---
                     if (cy === 0) {
                         chunksToLoad.add(this.getChunkKey(cx, cy, cz));
                         this.loadChunk(cx, cy, cz);
                     }
+                    // --- 修正 ここまで ---
                 }
             }
         }
 
+        // Unload chunks that are too far away
         for (const [key, chunk] of this.chunks.entries()) {
             if (!chunksToLoad.has(key)) {
                 const [cx, cy, cz] = key.split(',').map(Number);
@@ -445,12 +366,19 @@ export class World {
             }
         }
 
+        // --- 追加: グリッド単位の Feature (例: City) を生成 ---
         this.worldGenerator.generateGridBasedFeatures(playerPosition);
-        // --- 修正 ここまで ---
+        // --- 追加 ここまで ---
     }
+
+    // --- 修正: 古い getTerrainHeightAt を削除またはコメントアウト ---
+    // getTerrainHeightAt(x, z) {
+    //     const biome = this.biomeManager.getBiomeAt(x, z);
+    //     return biome.getHeight(x, z);
+    // }
     // --- 修正 ここまで ---
 
-    // WorldGenerator から呼び出される、Chunk にオブジェクトを追加するメソッド
+    // --- 追加: WorldGenerator から呼び出される、Chunk にオブジェクトを追加するメソッド ---
     addTreeToChunk(cx, cy, cz, treeMesh) {
         const chunkKey = this.getChunkKey(cx, cy, cz);
         const chunk = this.chunks.get(chunkKey);
@@ -470,11 +398,16 @@ export class World {
             console.warn(`Chunk (${cx}, ${cy}, ${cz}) not found when adding grass.`);
         }
     }
+    // --- 追加 ここまて ---
 
-    // ワールド座標から直接地形の高さを取得
+    // --- 追加: ワールド座標から直接地形の高さを取得 ---
     getWorldTerrainHeightAt(x, z) {
-        return this.biomeManager.getBiomeAt(x, z).getHeight(x, z);
+        // biomeManager を使用して高さを取得
+        // これは、Chunk.js の Heightfield が機能しない場合のフォールバック
+        const result = this.biomeManager.getBiomeAndHeightAt(x, z);
+        return result.height;
     }
+    // --- 追加 ここまて ---
 
     // 物理ワールドを更新するメソッド
     updatePhysics(deltaTime) {

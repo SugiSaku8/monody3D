@@ -1,32 +1,12 @@
 export class AudioManager {
     constructor() {
         this.sounds = {
-            bgmForest: {
+           /* bgmForest: {
                 url: "https://cdn.pixabay.com/download/audio/2022/03/15/audio_5a2e645f41.mp3?filename=forest-ambience-47463.mp3",
                 audio: null,
                 volume: 0.3,
                 loop: true
-            },
-            sfxJump: {
-                url: "https://cdn.pixabay.com/download/audio/2022/03/15/audio_e07803474d.mp3?filename=cartoon-jump-6462.mp3",
-                audio: null,
-                volume: 0.7
-            },
-            sfxLand: {
-                url: "https://cdn.pixabay.com/download/audio/2022/03/15/audio_9d4d2a1c1e.mp3?filename=hit-6463.mp3",
-                audio: null,
-                volume: 0.6
-            },
-            sfxChestOpen: {
-                url: "https://cdn.pixabay.com/download/audio/2022/03/15/audio_3d1a4f4d4f.mp3?filename=open-6470.mp3",
-                audio: null,
-                volume: 0.8
-            },
-            sfxTrollTalk: {
-                url: "https://cdn.pixabay.com/download/audio/2022/03/15/audio_1a2b3c4d5e.mp3?filename=notification-sound-7061.mp3",
-                audio: null,
-                volume: 0.5
-            }
+            }*/
         };
         
         this.isMuted = false;
