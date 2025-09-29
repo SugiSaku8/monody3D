@@ -72,11 +72,21 @@
     </style>
   </head>
   <body>
-    <div id="loading">
-      <div class="loading-content">
-        <div class="loading-spinner"></div>
-        <div>Loading game assets...</div>
-      </div>
+    <div id="loading" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: #35d3a0; display: flex; justify-content: center; align-items: center; overflow: hidden;">
+      <video autoplay muted loop style="max-width: 100%; max-height: 100%; object-fit: contain;">
+        <source src="assets/videos/loading.mp4" type="video/mp4">
+        <!-- 他のフォーマットも追加可能 -->
+        <!-- <source src="assets/videos/loading.webm" type="video/webm"> -->
+        Whoa, looks like your browser can’t handle the Ultra-Super-Exciting vid we had ready for ya. Okay, maybe “Ultra-Super-Exciting” was a stretch… whatever, don’t sweat it.
+        <br>
+        So yeah, if you’re reading this, you’re prob bored outta your mind. Go make some coffee or somethin’.
+        <br>
+        …Whoo, no coffee at home? Bruh. Fine, lemme hit you with a lil quiz:
+        <br>
+        In the Japanese Ogura Hyakunin Isshu, how many poets got “Shikibu” in their name? Here’s a hint: it’s a prime number. Good luck, fam ✌️
+        <br>
+        Allways Carnation Studio Monody Team be with you      </video>
+      <!-- <div class="loading-text">Loading...</div> --> <!-- テキストを表示する場合はコメントアウトを解除 -->
     </div>
 
     <div id="canvasWrapper">

@@ -8,86 +8,69 @@ export class Preloader {
     constructor(biomeManager, worldGenerator) {
         this.biomeManager = biomeManager;
         this.worldGenerator = worldGenerator;
-        this.preloadedChunks = new Map(); // プリロードされたチャンクデータをキャッシュ
-        this.biomeMap = new Map(); // 事前生成されたバイオームマップ
-        this.PRELOAD_RADIUS_CHUNKS = 32; // 32チャンク = 1024ワールド単位 (例)
-        this.PLAYER_START_X = 0; // プレイヤーの初期X座標
-        this.PLAYER_START_Z = 0; // プレイヤーの初期Z座標
-        this.CHUNK_SIZE = 32; // チャンクサイズ
+        this.preloadedChunks = new Map();
+        this.biomeMap = new Map();
+        this.PRELOAD_RADIUS_CHUNKS = 32;
+        this.PLAYER_START_X = 0;
+        this.PLAYER_START_Z = 0;
+        this.CHUNK_SIZE = 32;
     }
 
-    /**
-     * プリロード処理を開始します。
-     * @returns {Promise<void>} プリロードが完了する Promise
-     */
-    async preload() {
+    async preload(onProgress = () => {}) {
         console.log("Starting preloading process...");
         const startTime = performance.now();
 
         // 1. バイオームマップを事前生成
         this.generateBiomeMap();
+        onProgress(0.1);
 
         // 2. プリロード対象のチャンクを特定し、事前生成
+        const totalChunks = (this.PRELOAD_RADIUS_CHUNKS * 2 + 1) ** 2;
+        let processedChunks = 0;
         const preloadPromises = [];
+
         for (let dx = -this.PRELOAD_RADIUS_CHUNKS; dx <= this.PRELOAD_RADIUS_CHUNKS; dx++) {
             for (let dz = -this.PRELOAD_RADIUS_CHUNKS; dz <= this.PRELOAD_RADIUS_CHUNKS; dz++) {
                 const cx = Math.floor(this.PLAYER_START_X / this.CHUNK_SIZE) + dx;
                 const cz = Math.floor(this.PLAYER_START_Z / this.CHUNK_SIZE) + dz;
-                const key = `${cx},0,${cz}`; // Y=0 に限定
+                const key = `${cx},0,${cz}`;
 
-                // チャンクの中心座標
                 const worldCenterX = cx * this.CHUNK_SIZE + this.CHUNK_SIZE / 2;
                 const worldCenterZ = cz * this.CHUNK_SIZE + this.CHUNK_SIZE / 2;
 
-                // バイオームを取得 (事前生成されたマップから)
                 const biomeResult = this.biomeManager.getBiomeAndHeightAt(worldCenterX, 0, worldCenterZ);
                 const biome = biomeResult.biome;
 
-                // プリロード対象のバイオームかチェック (Af, Cfb など)
                 if (biome.classification === 'Af' || biome.classification === 'Cfb') {
-                    // 非同期でチャンクデータを事前生成
-                    // --- 修正: チャンクの高さデータも渡す ---
-                    const heights = this.calculateHeightsForChunk(cx, cz);
+                    // --- 修正: heights 配列を preloadChunk 内で生成するように変更 ---
+                    // const heights = this.calculateHeightsForChunk(cx, cz); // 以前の方法 (削除)
+                    const promise = this.preloadChunk(cx, 0, cz).then(() => { // heights を引数に渡さない
                     // --- 修正 ここまて ---
-                    const promise = this.preloadChunk(cx, 0, cz, heights).catch(err => {
+                        processedChunks++;
+                        const progress = 0.1 + (processedChunks / totalChunks) * 0.8;
+                        onProgress(progress);
+                    }).catch(err => {
                         console.error(`Failed to preload chunk (${cx}, 0, ${cz}):`, err);
+                        processedChunks++;
+                        const progress = 0.1 + (processedChunks / totalChunks) * 0.8;
+                        onProgress(progress);
                     });
                     preloadPromises.push(promise);
                 }
             }
         }
 
-        // すべてのプリロードタスクが完了するのを待つ
         await Promise.all(preloadPromises);
+        onProgress(0.9);
+
+        await new Promise(resolve => setTimeout(resolve, 100));
+        onProgress(1.0);
 
         const endTime = performance.now();
         console.log(`Preloading finished in ${(endTime - startTime).toFixed(2)} ms`);
         console.log(`Preloaded ${this.preloadedChunks.size} chunks.`);
     }
 
-    // --- 追加: チャンクの高さデータを計算するメソッド ---
-    calculateHeightsForChunk(cx, cz) {
-        const CHUNK_SIZE = this.CHUNK_SIZE;
-        const segments = 32;
-        const segmentSize = CHUNK_SIZE / segments;
-        const heights = [];
-
-        for (let z_seg = 0; z_seg <= segments; z_seg++) {
-            heights[z_seg] = [];
-            for (let x_seg = 0; x_seg <= segments; x_seg++) {
-                const worldX = cx * CHUNK_SIZE + x_seg * segmentSize;
-                const worldZ = cz * CHUNK_SIZE + z_seg * segmentSize;
-                const heightResult = this.biomeManager.getBiomeAndHeightAt(worldX, 0, worldZ); // Y=0での高さ
-                heights[z_seg][x_seg] = heightResult.height;
-            }
-        }
-        return heights;
-    }
-    // --- 追加 ここまて ---
-
-    /**
-     * 広範囲のバイオームマップを事前生成します。
-     */
     generateBiomeMap() {
         console.log("Generating biome map...");
         const mapStartTime = performance.now();
@@ -99,85 +82,70 @@ export class Preloader {
                 const worldCenterX = cx * this.CHUNK_SIZE + this.CHUNK_SIZE / 2;
                 const worldCenterZ = cz * this.CHUNK_SIZE + this.CHUNK_SIZE / 2;
 
-                // BiomeManager からバイオーム情報を取得 (高さも含む)
-                const biomeResult = this.biomeManager.getBiomeAndHeightAt(worldCenterX, 0, worldCenterZ); // Y=0での高さ
+                const biomeResult = this.biomeManager.getBiomeAndHeightAt(worldCenterX, 0, worldCenterZ);
                 const key = `${cx},${cz}`;
-                this.biomeMap.set(key, biomeResult); // biome と height を両方格納
+                this.biomeMap.set(key, biomeResult);
             }
         }
         const mapEndTime = performance.now();
         console.log(`Biome map generated in ${(mapEndTime - mapStartTime).toFixed(2)} ms`);
     }
 
-    /**
-     * 指定されたチャンクのデータを事前生成し、キャッシュします。
-     * @param {number} cx - チャンクX座標
-     * @param {number} cy - チャンクY座標 (通常 0)
-     * @param {number} cz - チャンクZ座標
-     * @param {Array<Array<number>>} heights - チャンクの高さデータ
-     * @returns {Promise<void>}
-     */
-    // --- 修正: heights パラメータを追加 ---
-    async preloadChunk(cx, cy, cz, heights) {
+    // --- 修正: heights 配列を preloadChunk 内で生成するように変更 ---
+    // calculateHeightsForChunk メソッドは削除 (preloadChunk 内で直接生成)
     // --- 修正 ここまて ---
+
+    // --- 修正: preloadChunk メソッド (heights 配列を内部で生成) ---
+    async preloadChunk(cx, cy, cz) {
         const key = `${cx},${cy},${cz}`;
         if (this.preloadedChunks.has(key)) {
-            // 既にプリロード済み
             return;
         }
 
         console.log(`Preloading chunk (${cx}, ${cy}, ${cz})...`);
 
-        // 1. チャンクの高さデータは引数から取得 (calculateHeightsForChunk で事前計算済み)
-        // const CHUNK_SIZE = this.CHUNK_SIZE;
-        // const segments = 32;
-        // const segmentSize = CHUNK_SIZE / segments;
-        // const heights = [];
-        // ... (以前の高さ計算ロジックは削除)
+        // --- 修正: heights 配列を内部で生成 ---
+        const CHUNK_SIZE = this.CHUNK_SIZE;
+        const segments = 32;
+        const segmentSize = CHUNK_SIZE / segments;
+        const heights = [];
 
-        // 2. バイオームを取得
-        // const biomeResult = this.biomeManager.getBiomeAndHeightAt(cx * CHUNK_SIZE + CHUNK_SIZE / 2, 0, cz * CHUNK_SIZE + CHUNK_SIZE / 2); // Y=0での高さ
-        // const biome = biomeResult.biome;
-        const biomeResult = this.biomeMap.get(`${cx},${cz}`) || this.biomeManager.getBiomeAndHeightAt(cx * this.CHUNK_SIZE + this.CHUNK_SIZE / 2, 0, cz * this.CHUNK_SIZE + this.CHUNK_SIZE / 2);
+        // 高さデータを生成 (createChunkMeshData と同様のロジック)
+        for (let z_seg = 0; z_seg <= segments; z_seg++) {
+            heights[z_seg] = []; // ここで z_seg の配列を初期化
+            for (let x_seg = 0; x_seg <= segments; x_seg++) {
+                const worldX = cx * CHUNK_SIZE + x_seg * segmentSize;
+                const worldZ = cz * CHUNK_SIZE + z_seg * segmentSize;
+                const heightResult = this.biomeManager.getBiomeAndHeightAt(worldX, 0, worldZ); // Y=0での高さ
+                heights[z_seg][x_seg] = heightResult.height; // ここで x_seg の値を格納
+            }
+        }
+        // --- 修正 ここまて ---
+
+        const biomeResult = this.biomeMap.get(`${cx},${cz}`) || this.biomeManager.getBiomeAndHeightAt(cx * CHUNK_SIZE + CHUNK_SIZE / 2, 0, cz * CHUNK_SIZE + CHUNK_SIZE / 2);
         const biome = biomeResult.biome;
 
-        // 3. チャンクメッシュデータを生成 (ジオメトリ、マテリアル)
-        // --- 修正: createChunkMeshData メソッドを呼び出す ---
-        const { geometry, material } = this.createChunkMeshData(cx, cy, cz, this.CHUNK_SIZE, biome, heights);
+        // --- 修正: createChunkMeshData に heights 配列を渡す ---
+        const { geometry, material } = this.createChunkMeshData(cx, cy, cz, CHUNK_SIZE, biome, heights);
         // --- 修正 ここまて ---
 
-        // 4. Feature (木、草など) のインスタンスデータを生成
-        // --- 修正: generateFeatureDataForChunk メソッドを呼び出す ---
-        const featureData = await this.generateFeatureDataForChunk(cx, cy, cz, this.CHUNK_SIZE, biome, heights);
-        // --- 修正 ここまて ---
+        const featureData = await this.generateFeatureDataForChunk(cx, cy, cz, CHUNK_SIZE, biome, heights);
 
-        // 5. 生成したデータをキャッシュに保存
         this.preloadedChunks.set(key, {
             geometry: geometry,
             material: material,
-            featureData: featureData, // 木や草の InstancedMesh 用データ
+            featureData: featureData,
             biome: biome,
-            heights: heights // 高さデータも保存
+            heights: heights
         });
 
         console.log(`Chunk (${cx}, ${cy}, ${cz}) preloaded.`);
     }
+    // --- 修正 ここまて ---
 
-    // --- 修正: createChunkMeshData メソッドの実装 ---
-    /**
-     * チャンクのメッシュデータ (ジオメトリ、マテリアル) を生成します。
-     * @param {number} cx - チャンクX座標
-     * @param {number} cy - チャンクY座標
-     * @param {number} cz - チャンクZ座標
-     * @param {number} chunkSize - チャンクサイズ
-     * @param {Biome} biome - チャンクのバイオーム
-     * @param {Array<Array<number>>} heights - 高さデータ配列
-     * @returns {{geometry: THREE.BufferGeometry, material: THREE.Material}}
-     */
     createChunkMeshData(cx, cy, cz, chunkSize, biome, heights) {
         const geometry = new THREE.BufferGeometry();
 
-        // biome からマテリアルを取得
         const material = biome.getMaterial(cx * chunkSize, cz * chunkSize) || new THREE.MeshStandardMaterial({ color: 0x00aa00 });
 
         const segments = 32;
@@ -188,22 +156,49 @@ export class Preloader {
         const indices = [];
         const uvs = [];
 
-        // 高さデータから頂点を生成
-        for (let z = 0; z <= segments; z++) {
-            for (let x = 0; x <= segments; x++) {
-                const height = heights[z][x];
+        // --- 修正: 外部から渡された heights 配列を使用 ---
+        // Generate terrain height using Perlin noise (for visual mesh)
+        // const heights = []; // 以前の方法 (削除)
+        // for (let z = 0; z <= segments; z++) {
+        //     heights[z] = []; // 以前の方法 (削除)
+        //     for (let x = 0; x <= segments; x++) {
+        //         const worldX = cx * chunkSize + x * segmentSize;
+        //         const worldZ = cz * chunkSize + z * segmentSize;
+        //
+        //         let height = biome.getHeight(worldX, worldZ);
+        //         heights[z][x] = height; // 以前の方法 (削除)
+        //
+        //         // Add vertex
+        //         vertices.push(
+        //             x * segmentSize - halfSize,
+        //             height,
+        //             z * segmentSize - halfSize
+        //         );
+        //
+        //         // Add UVs
+        //         uvs.push(x / segments, 1 - z / segments);
+        //     }
+        // }
+        // --- 修正 ここまて ---
+        // --- 修正: 代わりに this.heights 配列を使用 ---
+        for (let z_seg = 0; z_seg <= segments; z_seg++) {
+            for (let x_seg = 0; x_seg <= segments; x_seg++) {
+                // --- 修正: heights[z_seg][x_seg] にアクセス ---
+                const height = heights[z_seg][x_seg]; // 外部から渡された heights 配列を使用
 
                 // Add vertex
                 vertices.push(
-                    x * segmentSize - halfSize,
+                    x_seg * segmentSize - halfSize,
                     height,
-                    z * segmentSize - halfSize
+                    z_seg * segmentSize - halfSize
                 );
 
                 // Add UVs
-                uvs.push(x / segments, 1 - z / segments);
+                uvs.push(x_seg / segments, 1 - z_seg / segments);
             }
         }
+        // --- 修正 ここまで ---
+
 
         // Create faces
         for (let z = 0; z < segments; z++) {
@@ -228,7 +223,27 @@ export class Preloader {
 
         return { geometry, material };
     }
-    // --- 修正 ここまて ---
+    
+
+    // --- 追加: チャンクの高さデータを計算するメソッド ---
+    calculateHeightsForChunk(cx, cz) {
+        const CHUNK_SIZE = this.CHUNK_SIZE;
+        const segments = 32;
+        const segmentSize = CHUNK_SIZE / segments;
+        const heights = [];
+
+        for (let z_seg = 0; z_seg <= segments; z_seg++) {
+            heights[z_seg] = [];
+            for (let x_seg = 0; x_seg <= segments; x_seg++) {
+                const worldX = cx * CHUNK_SIZE + x_seg * segmentSize;
+                const worldZ = cz * CHUNK_SIZE + z_seg * segmentSize;
+                const heightResult = this.biomeManager.getBiomeAndHeightAt(worldX, 0, worldZ); // Y=0での高さ
+                heights[z_seg][x_seg] = heightResult.height;
+            }
+        }
+        return heights;
+    }
+    // --- 追加 ここまて ---
 
     // --- 修正: generateFeatureDataForChunk メソッドの実装 ---
     /**

@@ -18,22 +18,51 @@ export class World {
         // PhysicsWorld を初期化して保持
         this.physicsWorld = new PhysicsWorld();
 
-        // Set up lighting
-        this.setupLighting();
+        // Preloader を初期化
+        this.preloader = new Preloader(this.biomeManager, new WorldGenerator(this, this.biomeManager, this.physicsWorld));
 
-        // --- 修正: Preloader を初期化 ---
-        this.preloader = new Preloader(this.biomeManager, new WorldGenerator(this, this.biomeManager, this.physicsWorld)); // WorldGenerator は一時的にインスタンス化
-        // --- 修正 ここまて ---
+        // WorldGenerator を初期化
+        this.worldGenerator = this.preloader.worldGenerator;
 
-        // --- 修正: WorldGenerator は Preloader の WorldGenerator を使う ---
-        // this.worldGenerator = new WorldGenerator(this, this.biomeManager, this.physicsWorld);
-        this.worldGenerator = this.preloader.worldGenerator; // Preloader が持つ WorldGenerator を再利用
-        // --- 修正 ここまて ---
+        // --- 追加: 初期化進捗を追跡する変数 ---
+        this.initializationProgress = 0;
+        // --- 追加 ここまて ---
     }
 
+    // --- 追加: 初期化進捗を取得するメソッド ---
+    async getInitializationProgress() {
+        // Preloader が進捗を報告する仕組みがあれば、それを返す
+        // ここでは、単純に this.initializationProgress を返す
+        // 実際には、Preloader 内で this.initializationProgress を更新するロジックが必要
+        return this.initializationProgress;
+    }
+    // --- 追加 ここまて ---
+
+    // --- 修正: initialize メソッド (プリロードを実行) ---
     async initialize() {
-        await this.preloader.preload();
-        console.log("World initialization complete.");
+        console.log("Starting World initialization...");
+        const initStartTime = performance.now();
+
+        try {
+            // --- 修正: Preloader の初期化進捗を報告 ---
+            // Preloader.preload が進行状況をコールバックで報告するように変更する
+            // ここでは、await this.preloader.preload(); の代わりに、
+            // 進行状況を this.initializationProgress に反映するコールバックを渡す
+            await new Promise((resolve, reject) => {
+                this.preloader.preload((progress) => {
+                    // 進行状況 (0.0 ~ 1.0) を % に変換して格納
+                    this.initializationProgress = Math.round(progress * 100);
+                    console.log(`Preloader progress: ${this.initializationProgress}%`);
+                }).then(resolve).catch(reject);
+            });
+            // --- 修正 ここまて ---
+
+            const initEndTime = performance.now();
+            console.log(`World initialization completed in ${(initEndTime - initStartTime).toFixed(2)} ms`);
+        } catch (error) {
+            console.error("World initialization failed:", error);
+            throw error; // Game.js にエラーを再スロー
+        }
     }
 
     setupLighting() {

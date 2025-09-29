@@ -1,0 +1,176 @@
+[
+  {
+    "totalLoadTimeMs": 2088,
+    "progressAt31_25ms": 90,
+    "timestamp": "2025-09-29T09:23:54.370Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 1142.199999999255,
+    "progressAt31_25ms": 90,
+    "timestamp": "2025-09-29T09:25:37.094Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 1664.199999999255,
+    "progressAt31_25ms": 90,
+    "timestamp": "2025-09-29T09:26:12.673Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 1839.300000000745,
+    "progressAt31_25ms": 90,
+    "timestamp": "2025-09-29T09:26:19.640Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 3225.60000000149,
+    "progressAt31_25ms": 90,
+    "timestamp": "2025-09-29T09:26:23.280Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 2281.800000000745,
+    "progressAt31_25ms": 90,
+    "timestamp": "2025-09-29T09:26:31.392Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 917.3000000007451,
+    "progressAt31_25ms": 90,
+    "timestamp": "2025-09-29T09:27:19.108Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 1652.3999999985099,
+    "progressAt31_25ms": 90,
+    "timestamp": "2025-09-29T09:27:21.949Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 935,
+    "progressAt31_25ms": 90,
+    "timestamp": "2025-09-29T09:30:44.236Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 1467.4000000022352,
+    "progressAt31_25ms": 90,
+    "timestamp": "2025-09-29T09:35:25.459Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 1381.5,
+    "progressAt31_25ms": 90,
+    "timestamp": "2025-09-29T09:36:00.606Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 831.1999999992549,
+    "progressAt31_25ms": 90,
+    "timestamp": "2025-09-29T09:36:11.829Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 827.3999999985099,
+    "progressAt31_25ms": 90,
+    "timestamp": "2025-09-29T09:36:33.693Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 1170.7999999970198,
+    "progressAt31_25ms": 90,
+    "timestamp": "2025-09-29T09:37:12.521Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 1153.5,
+    "progressAt31_25ms": 90,
+    "timestamp": "2025-09-29T09:49:48.791Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 1187.5,
+    "progressAt31_25ms": 90,
+    "timestamp": "2025-09-29T09:49:58.108Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 1139.0999999977648,
+    "progressAt31_25ms": 90,
+    "timestamp": "2025-09-29T09:50:05.535Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 1310.7999999970198,
+    "progressAt31_25ms": 90,
+    "timestamp": "2025-09-29T09:50:12.430Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 2362.5,
+    "progressAt31_25ms": 90,
+    "timestamp": "2025-09-29T09:50:19.035Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 2971.599999997765,
+    "progressAt31_25ms": 90,
+    "timestamp": "2025-09-29T09:50:42.238Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 2315,
+    "progressAt31_25ms": 90,
+    "timestamp": "2025-09-29T09:50:48.664Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 2087,
+    "progressAt31_25ms": 90,
+    "timestamp": "2025-09-29T09:51:25.069Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 1473.0999999977648,
+    "progressAt31_25ms": 90,
+    "timestamp": "2025-09-29T09:51:34.379Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 1172.2000000029802,
+    "progressAt31_25ms": 90,
+    "timestamp": "2025-09-29T09:52:43.966Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 1151.3999999985099,
+    "progressAt31_25ms": 90,
+    "timestamp": "2025-09-29T09:53:00.295Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 1621.800000000745,
+    "progressAt31_25ms": 90,
+    "timestamp": "2025-09-29T09:53:27.591Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 1210.9000000022352,
+    "progressAt31_25ms": 90,
+    "timestamp": "2025-09-29T09:54:20.173Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 1243,
+    "progressAt31_25ms": 90,
+    "timestamp": "2025-09-29T09:55:49.922Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 1258.6000000014901,
+    "progressAt31_25ms": 90,
+    "timestamp": "2025-09-29T09:58:48.138Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  }
+]
