@@ -77,85 +77,77 @@ export class BiomeManager {
   }
   // --- 追加 ここまで ---
 
-  // --- 修正: getBiomeAndHeightAt メソッド (以前のロジックは変更なし、ただしフォールバックを調整) ---
-  getBiomeAndHeightAt(x, z) {
+  // --- 修正: getBiomeAndHeightAt メソッドが存在することを確認・追加 ---
+  /**
+   * 指定されたワールド座標 (x, z) におけるバイオームと地形の高さを取得します。
+   * @param {number} x - ワールドX座標
+   * @param {number} y - ワールドY座標 (高度補正に使用)
+   * @param {number} z - ワールドZ座標
+   * @returns {{ biome: Biome, height: number }} バイオームインスタンスと高さ
+   */
+  getBiomeAndHeightAt(x, y, z) {
+    // 1. 基準高度マップからその地点の「基準高度」を取得
     const baseElevation = this.elevationNoise.noise(x * this.elevationScale, z * this.elevationScale, 0) * 5000;
+
+    // 2. 温度マップと降水量マップを生成
     const tempNoiseValue = this.temperatureNoise.noise(x * this.noiseScale, 0, z * this.noiseScale);
     const precipNoiseValue = this.precipitationNoise.noise(0, x * this.noiseScale, z * this.noiseScale);
 
-    const temperature = tempNoiseValue * 30 + 15;
-    const precipitation = Math.max(0, precipNoiseValue * 1000 + 500);
+    // 3. ノイズ値を実際の気温や降水量に変換
+    const temperature = tempNoiseValue * 30 + 15; // -15°C ~ +45°C
+    const precipitation = Math.max(0, precipNoiseValue * 1000 + 500); // 0mm ~ 1500mm
 
-    let provisionalClassificationCode = 'BWh'; // デフォルトは乾燥
-    if (temperature >= 18 && precipitation >= 600) {
-      provisionalClassificationCode = 'Af'; // 熱帯雨林
-    } else if (temperature >= 18 && precipitation >= 250 && precipitation < 600) {
-      provisionalClassificationCode = 'Aw'; // サバナ (未実装)
-    } else if (temperature >= 18) {
-      provisionalClassificationCode = 'Am'; // 熱帯モンスーン (未実装)
-    } else if (temperature >= 10 && temperature < 18 && precipitation >= 500) {
-        provisionalClassificationCode = 'Cfb'; // 西岸海洋性
-    } else if (temperature >= 10 && temperature < 18) {
-        provisionalClassificationCode = 'Csa'; // 地中海性 (未実装)
-    } else if (temperature >= 0 && temperature < 10 && precipitation >= 300) {
-        provisionalClassificationCode = 'Dfb'; // 冷帯湿潤
-    } else if (temperature >= 0 && temperature < 10) {
-        provisionalClassificationCode = 'Dwb'; // 冷帯冬季少雨 (未実装)
-    } else if (temperature < 0 && precipitation >= 200) {
-        provisionalClassificationCode = 'ET'; // ツンドラ
-    } else if (temperature < 0) {
-        provisionalClassificationCode = 'EF'; // 氷雪 (未実装)
+    // 4. 実際の高度 (y) と基準高度 (baseElevation) の差を計算
+    const heightDifference = y - baseElevation;
+
+    // 5. 高度補正 (Lapse Rate: 高度が上がると気温が下がる)
+    const lapseRate = 0.0065; // 6.5°C/100m
+    const altitudeAdjustedTemp = temperature - (heightDifference * lapseRate);
+
+    // 6. 気候分類コード (Köppenなど) を決定
+    let classificationCode = 'Unknown';
+    if (altitudeAdjustedTemp >= 18 && precipitation >= 600) {
+      classificationCode = 'Af'; // 熱帯雨林
+    } else if (altitudeAdjustedTemp >= 18 && precipitation >= 250 && precipitation < 600) {
+      classificationCode = 'Aw'; // サバナ
+    } else if (altitudeAdjustedTemp >= 18) {
+      classificationCode = 'Am'; // 熱帯モンスーン
+    } else if (altitudeAdjustedTemp >= 10 && altitudeAdjustedTemp < 18 && precipitation >= 500) {
+        classificationCode = 'Cfb'; // 西岸海洋性
+    } else if (altitudeAdjustedTemp >= 10 && altitudeAdjustedTemp < 18) {
+        classificationCode = 'Csa'; // 地中海性
+    } else if (altitudeAdjustedTemp >= 0 && altitudeAdjustedTemp < 10 && precipitation >= 300) {
+        classificationCode = 'Dfb'; // 冷帯湿潤
+    } else if (altitudeAdjustedTemp >= 0 && altitudeAdjustedTemp < 10) {
+        classificationCode = 'Dwb'; // 冷帯冬季少雨
+    } else if (altitudeAdjustedTemp < 0 && precipitation >= 200) {
+        classificationCode = 'ET'; // ツンドラ
+    } else if (altitudeAdjustedTemp < 0) {
+        classificationCode = 'EF'; // 氷雪
     } else {
-      provisionalClassificationCode = 'BWh'; // 砂漠
+      classificationCode = 'BWh'; // 砂漠
     }
 
-    const provisionalBiome = this.biomes.get(provisionalClassificationCode) || this.biomes.get('Unknown') || Array.from(this.biomes.values())[0] || null;
+    // 7. 高度が極端に高い場合、高山気候(H)に上書き
+    if (y > 2000) { // 例: 2000m以上
+        classificationCode = 'H';
+    }
 
-    if (!provisionalBiome) {
+    // 8. 最終的なバイオームを取得
+    const finalBiome = this.biomes.get(classificationCode) || this.biomes.get('Forest') || Array.from(this.biomes.values())[0] || null;
+
+    if (!finalBiome) {
          console.error("No biomes registered in BiomeManager!");
-         // フォールバックとして、空のダミーバイオームを返すか、エラーを投げる
+         // フォールバックとして、空のダミーバイオームを返す
          return { biome: { getHeight: () => 0, classification: 'Unknown' }, height: 0 };
     }
 
-    const provisionalHeight = provisionalBiome.getHeight(x, z);
-    const heightDifference = provisionalHeight - baseElevation;
-    const lapseRate = 0.0065;
-    const altitudeAdjustedTemp = temperature - (heightDifference * lapseRate);
-
-    let finalClassificationCode = provisionalClassificationCode;
-    // --- 修正例: classify ロジックを新しいバイオームに対応させる ---
-    if (altitudeAdjustedTemp >= 18 && precipitation >= 600) {
-      finalClassificationCode = 'Af'; // 熱帯雨林
-    } else if (altitudeAdjustedTemp >= 18 && precipitation >= 250 && precipitation < 600) {
-      finalClassificationCode = 'Aw'; // サバナ (未実装)
-    } else if (altitudeAdjustedTemp >= 18) {
-      finalClassificationCode = 'Am'; // 熱帯モンスーン (未実装)
-    } else if (altitudeAdjustedTemp >= 10 && altitudeAdjustedTemp < 18 && precipitation >= 500) {
-        finalClassificationCode = 'Cfb'; // 西岸海洋性
-    } else if (altitudeAdjustedTemp >= 10 && altitudeAdjustedTemp < 18) {
-        finalClassificationCode = 'Csa'; // 地中海性 (未実装)
-    } else if (altitudeAdjustedTemp >= 0 && altitudeAdjustedTemp < 10 && precipitation >= 300) {
-        finalClassificationCode = 'Dfb'; // 冷帯湿潤
-    } else if (altitudeAdjustedTemp >= 0 && altitudeAdjustedTemp < 10) {
-        finalClassificationCode = 'Dwb'; // 冷帯冬季少雨 (未実装)
-    } else if (altitudeAdjustedTemp < 0 && precipitation >= 200) {
-        finalClassificationCode = 'ET'; // ツンドラ
-    } else if (altitudeAdjustedTemp < 0) {
-        finalClassificationCode = 'EF'; // 氷雪 (未実装)
-    } else {
-      finalClassificationCode = 'BWh'; // 砂漠
-    }
-    // --- 修正例 ここまで ---
-
-    if (provisionalHeight > 2000) { // 例: 2000m以上
-        finalClassificationCode = 'H'; // 高山気候
-    }
-
-    const finalBiome = this.biomes.get(finalClassificationCode) || provisionalBiome;
+    // 9. バイオームから高さを取得
     const finalHeight = finalBiome.getHeight(x, z);
 
     return { biome: finalBiome, height: finalHeight };
   }
+  // --- 修正 ここまて ---
   // --- 修正 ここまて ---
 
   getBiomeAt(x, y, z) {
