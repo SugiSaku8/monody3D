@@ -7,6 +7,7 @@ export class UIManager {
         this.playerChunkElement = document.getElementById('playerChunk');
         this.onGroundElement = document.getElementById('onGround');
         this.messageElement = document.getElementById('message');
+        this.biomeElement = document.getElementById('biomeInfo');
         this.fpsElement = document.getElementById('fpsCounter'); // FPS表示要素
         // --- 追加: コマンド入力欄の要素を取得 ---
         this.commandInputElement = document.getElementById('commandInput');
@@ -36,6 +37,17 @@ export class UIManager {
         }
 
         // FPSはGame.jsで更新されるため、ここでは更新しない
+        if (this.biomeElement) {
+            // player.world から BiomeManager にアクセス
+            const biomeManager = player.world.biomeManager;
+            if (biomeManager) {
+                const biomeResult = biomeManager.getBiomeAndHeightAt(player.position.x, player.position.y, player.position.z);
+                const currentBiome = biomeResult.biome;
+                this.biomeElement.textContent = `${currentBiome.name} (${currentBiome.classification})`;
+            } else {
+                this.biomeElement.textContent = "BiomeManager not found";
+            }
+        }
     }
 
     // --- 修正: displayMessage メソッド ---

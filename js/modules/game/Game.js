@@ -18,12 +18,12 @@ export class Game {
         this.audioManager = new AudioManager();
         this.uiManager = new UIManager();
 
-        // Initialize world and player
-        this.world = new World(this.scene);
-        this.player = new Player(this.scene, this.world);
-
-        // Set up renderer
+        // Set up renderer first
         this.setupRenderer();
+
+        // Initialize world and player (pass renderer to player)
+        this.world = new World(this.scene);
+        this.player = new Player(this.scene, this.world, this.renderer);
 
         // Set up event listeners (キー入力は Player が処理)
         this.setupEventListeners();
@@ -60,8 +60,8 @@ export class Game {
     setupEventListeners() {
         window.addEventListener('resize', this.onWindowResize.bind(this));
         document.addEventListener('keydown', this.handleKeyDown.bind(this));
-
     }
+    
     handleKeyDown(event) {
         if (event.key === 't' || event.key === 'T') {
             // UIManager にコマンド入力欄を表示するように指示

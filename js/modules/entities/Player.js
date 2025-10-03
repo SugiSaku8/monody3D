@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 
 export class Player {
-    constructor(scene, world) {
+    constructor(scene, world, renderer) { // Add renderer parameter
         this.scene = scene;
         this.world = world;
         this.SPEED = 5.0;
@@ -39,11 +39,11 @@ export class Player {
         this.pointerSensitivity = 0.002;
         this.yaw = 0;
         this.pitch = 0;
-    }
 
-    // New method to initialize with renderer
-    initWithRenderer(renderer) {
+        // Store renderer reference
         this.renderer = renderer;
+
+        // Set up event listeners
         this.setupEventListeners();
     }
 
