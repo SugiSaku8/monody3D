@@ -27,9 +27,21 @@ export class Game {
         // Set up event listeners (キー入力は Player が処理)
         this.setupEventListeners();
 
-        // --- 修正: 非同期で初期化 ---
+        // --- 追加: FPS計算用の変数 ---
+        this.frameCount = 0;
+        this.lastFpsUpdate = performance.now(); // 高精度タイマーを使用
+        this.currentFps = 0;
+        // --- 追加 ここまて ---
+
+        // --- 追加: FPS表示用のDOM要素を取得 ---
+        this.fpsElement = document.getElementById('fpsCounter');
+        if (!this.fpsElement) {
+             console.warn("FPS counter element (id='fpsCounter') not found in HTML. Please add it to display FPS.");
+        }
+        // --- 追加 ここまて ---
+
+        // Start game loop
         this.initializeAsync();
-        // --- 修正 ここまて ---
     }
 
     setupRenderer() {
@@ -49,23 +61,14 @@ export class Game {
         this.renderer.setSize(window.innerWidth, window.innerHeight);
     }
 
-    // --- 修正: 非同期初期化メソッド ---
     async initializeAsync() {
         try {
-            // --- 修正: World の初期化 (プリロードを含む) を削除 ---
-            // await this.world.initialize(); // これは不要になったため削除
-            // --- 修正 ここまて ---
-
-            // --- 修正: プリロード後にゲームループを開始 ---
             // Start game loop
             this.animate();
-            // --- 修正 ここまて ---
         } catch (error) {
             console.error("Failed to initialize the game:", error);
-            // エラー処理 (例: エラーメッセージを画面に表示)
         }
     }
-    // --- 修正 ここまて ---
 
     animate() {
         requestAnimationFrame(this.animate.bind(this));
@@ -86,7 +89,28 @@ export class Game {
 
         // Render scene
         this.renderer.render(this.scene, this.player.camera);
-    }
 
-    // ... (他のメソッドは変更なし) ...
+        // --- 修正: FPS計算と表示 (ロジックを修正・整理) ---
+        this.frameCount++; // 1. フレームカウントをインクリメント
+
+        const now = performance.now(); // 2. 現在時刻を取得
+        const deltaMs = now - this.lastFpsUpdate; // 3. 前回更新からの経過時間(ms)
+
+        // 4. 1秒 (1000ms) 経過したかチェック
+        if (deltaMs >= 1000) {
+            // 5. FPSを計算: (フレーム数 * 1000) / 経過時間(ms)
+            this.currentFps = Math.round((this.frameCount * 1000) / deltaMs);
+
+            // 6. 次の計算のためにカウンターと時刻をリセット
+            this.frameCount = 0;
+            this.lastFpsUpdate = now; // 7. 最終更新時刻を現在時刻に更新
+
+            // 8. FPSをHTML要素に表示
+            if (this.fpsElement) {
+                this.fpsElement.textContent = `FPS: ${this.currentFps}`;
+            }
+            // console.log(`FPS: ${this.currentFps}`); // デバッグ用
+        }
+        // --- 修正 ここまて ---
+    }
 }

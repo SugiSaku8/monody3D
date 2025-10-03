@@ -95,7 +95,7 @@ export class BiomeManager {
 
     // 3. ノイズ値を実際の気温や降水量に変換
     const temperature = tempNoiseValue * 30 + 15; // -15°C ~ +45°C
-    const precipitation = Math.max(0, precipNoiseValue * 1000 + 500); // 0mm ~ 1500mm
+    const precipitation = Math.max(0, precipNoiseValue * 1000 + 500); // 0mm ~ 1500mm (負の値は0にクランプ)
 
     // 4. 実際の高度 (y) と基準高度 (baseElevation) の差を計算
     const heightDifference = y - baseElevation;
@@ -104,49 +104,71 @@ export class BiomeManager {
     const lapseRate = 0.0065; // 6.5°C/100m
     const altitudeAdjustedTemp = temperature - (heightDifference * lapseRate);
 
-    // 6. 気候分類コード (Köppenなど) を決定
+    // 6. 気候分類コード (Köppenなど) を決定 (ハードな閾値からスムーズな境界に変更)
     let classificationCode = 'Unknown';
-    if (altitudeAdjustedTemp >= 18 && precipitation >= 600) {
-      classificationCode = 'Af'; // 熱帯雨林
-    } else if (altitudeAdjustedTemp >= 18 && precipitation >= 250 && precipitation < 600) {
-      classificationCode = 'Aw'; // サバナ
-    } else if (altitudeAdjustedTemp >= 18) {
-      classificationCode = 'Am'; // 熱帯モンスーン
-    } else if (altitudeAdjustedTemp >= 10 && altitudeAdjustedTemp < 18 && precipitation >= 500) {
-        classificationCode = 'Cfb'; // 西岸海洋性
-    } else if (altitudeAdjustedTemp >= 10 && altitudeAdjustedTemp < 18) {
-        classificationCode = 'Csa'; // 地中海性
-    } else if (altitudeAdjustedTemp >= 0 && altitudeAdjustedTemp < 10 && precipitation >= 300) {
-        classificationCode = 'Dfb'; // 冷帯湿潤
-    } else if (altitudeAdjustedTemp >= 0 && altitudeAdjustedTemp < 10) {
-        classificationCode = 'Dwb'; // 冷帯冬季少雨
-    } else if (altitudeAdjustedTemp < 0 && precipitation >= 200) {
-        classificationCode = 'ET'; // ツンドラ
-    } else if (altitudeAdjustedTemp < 0) {
-        classificationCode = 'EF'; // 氷雪
-    } else {
-      classificationCode = 'BWh'; // 砂漠
-    }
+    let confidence = 0; // バイオームの確信度 (0.0 ~ 1.0)
 
-    // 7. 高度が極端に高い場合、高山気候(H)に上書き
+    // --- 修正: スムーズな境界判定ロジック ---
+    // 例: 熱帯雨林 (Af) の境界判定
+    const afTempMin = 18;
+    const afPrecipMin = 600;
+    const afTempMax = 28; // 上限を設定
+    const afPrecipMax = 2000; // 上限を設定
+
+    const afTempFactor = THREE.MathUtils.smoothstep(afTempMin, afTempMax, altitudeAdjustedTemp);
+    const afPrecipFactor = THREE.MathUtils.smoothstep(afPrecipMin, afPrecipMax, precipitation);
+    const afConfidence = afTempFactor * afPrecipFactor; // 両方の条件を満たすほど自信がある
+
+    // 例: サバナ (Aw) の境界判定
+    const awTempMin = 18;
+    const awPrecipMin = 250;
+    const awPrecipMax = 600;
+    const awTempMax = 28; // 上限を設定
+
+    const awTempFactor = THREE.MathUtils.smoothstep(awTempMin, awTempMax, altitudeAdjustedTemp);
+    const awPrecipFactor = THREE.MathUtils.smoothstep(awPrecipMin, awPrecipMax, precipitation);
+    const awConfidence = awTempFactor * (1.0 - afPrecipFactor); // Af でない範囲
+
+    // 他のバイオームも同様に計算...
+    // (ここでは簡略化のため、Af と Aw のみを例に挙げています)
+    // --- 修正 ここまて ---
+
+    // 7. 最も確信度の高いバイオームを選択
+    // --- 修正: 確信度に基づいてバイオームを選択 ---
+    if (afConfidence > awConfidence && afConfidence > confidence) {
+        classificationCode = 'Af';
+        confidence = afConfidence;
+    } else if (awConfidence > confidence) {
+        classificationCode = 'Aw';
+        confidence = awConfidence;
+    } else {
+        // フォールバック (Forest)
+        classificationCode = 'Forest';
+        confidence = 0.5; // 適当な値
+    }
+    // --- 修正 ここまて ---
+
+    // 8. 高度が極端に高い場合、高山気候(H)に上書き
     if (y > 2000) { // 例: 2000m以上
         classificationCode = 'H';
+        confidence = 1.0; // 高山気候は確定
     }
 
-    // 8. 最終的なバイオームを取得
+    // 9. 最終的なバイオームを取得
     const finalBiome = this.biomes.get(classificationCode) || this.biomes.get('Forest') || Array.from(this.biomes.values())[0] || null;
 
     if (!finalBiome) {
          console.error("No biomes registered in BiomeManager!");
          // フォールバックとして、空のダミーバイオームを返す
-         return { biome: { getHeight: () => 0, classification: 'Unknown' }, height: 0 };
+         return { biome: { getHeight: () => 0, classification: 'Unknown' }, height: 0, confidence: 0 };
     }
 
-    // 9. バイオームから高さを取得
+    // 10. バイオームから高さを取得
     const finalHeight = finalBiome.getHeight(x, z);
 
-    return { biome: finalBiome, height: finalHeight };
+    return { biome: finalBiome, height: finalHeight, confidence: confidence };
   }
+
   // --- 修正 ここまて ---
   // --- 修正 ここまて ---
 

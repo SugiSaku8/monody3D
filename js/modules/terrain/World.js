@@ -1,5 +1,6 @@
 // js/modules/terrain/World.js
 import * as THREE from 'three';
+import { Sky } from 'three/addons/objects/Sky.js';
 import { Chunk } from './Chunk.js';
 import { BiomeManager } from '../biomes/BiomeManager.js';
 import { PhysicsWorld } from '../physics/PhysicsWorld.js';
@@ -26,17 +27,58 @@ export class World {
     }
 
     setupLighting() {
+        // --- 修正: Sky.js を使用してリアルな空を生成 ---
+        const sky = new Sky();
+        sky.scale.setScalar(450000); // 非常に大きなスケール
+        this.scene.add(sky);
+
+        const sun = new THREE.Vector3();
+        const phi = THREE.MathUtils.degToRad(90 - 20); // 太陽の仰角 (例: 20度)
+        const theta = THREE.MathUtils.degToRad(180); // 太陽の方位角 (例: 南)
+
+        sun.setFromSphericalCoords(1, phi, theta);
+
+        // Sky シェーダーの uniforms を設定
+        sky.material.uniforms['sunPosition'].value.copy(sun);
+        // --- 修正 ここまて ---
+
         // Ambient light
         const ambientLight = new THREE.AmbientLight(0x404040, 1.0); // 強度を上げた
         this.scene.add(ambientLight);
 
         // Directional light (sun)
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-        directionalLight.position.set(1, 1, 1).normalize();
+        const sunLightIntensity = 1.5;
+        const sunLightColor = 0xffffff;
+        // const sunLightPosition = sun.clone().multiplyScalar(10000); // Sky.js の太陽位置と一致
+
+        const sunLight = new THREE.DirectionalLight(sunLightColor, sunLightIntensity);
+        sunLight.position.copy(sun.clone().multiplyScalar(10000)); // Sky.js の太陽位置と一致
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 2048;
+        sunLight.shadow.mapSize.height = 2048;
+        sunLight.shadow.camera.left = -100;
+        sunLight.shadow.camera.right = 100;
+        sunLight.shadow.camera.top = 100;
+        sunLight.shadow.camera.bottom = -100;
+        sunLight.shadow.camera.near = 0.5;
+        sunLight.shadow.camera.far = 500;
+        this.scene.add(sunLight);
+
+        // Directional light for shadows
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        directionalLight.position.copy(sun.clone().multiplyScalar(10000)); // Sky.js の太陽位置と一致
+        directionalLight.position.normalize().multiplyScalar(10); // シーン内の適当な位置に
         directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
+        directionalLight.shadow.camera.left = -100;
+        directionalLight.shadow.camera.right = 100;
+        directionalLight.shadow.camera.top = 100;
+        directionalLight.shadow.camera.bottom = -100;
+        directionalLight.shadow.camera.near = 0.5;
+        directionalLight.shadow.camera.far = 500;
         this.scene.add(directionalLight);
     }
-
     getChunkKey(x, y, z) {
         return `${x},${y},${z}`;
     }
