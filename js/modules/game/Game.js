@@ -4,6 +4,7 @@ import { Player } from '../entities/Player.js';
 import { World } from '../terrain/World.js';
 import { AudioManager } from '../audio/AudioManager.js';
 import { UIManager } from '../ui/UIManager.js';
+import { CommandManager } from '../ui/CommandManager.js';
 
 export class Game {
     constructor() {
@@ -39,7 +40,12 @@ export class Game {
              console.warn("FPS counter element (id='fpsCounter') not found in HTML. Please add it to display FPS.");
         }
         // --- 追加 ここまて ---
+     // --- 追加: CommandManager を初期化 ---
+     this.commandManager = new CommandManager(this, this.world, this.player, this.uiManager);
+     // --- 追加 ここまて ---
 
+     // --- 修正: UIManager に CommandManager を渡してイベントリスナーを設定 ---
+     this.uiManager.setupCommandInputListener(this.commandManager);
         // Start game loop
         this.initializeAsync();
     }
@@ -53,8 +59,17 @@ export class Game {
 
     setupEventListeners() {
         window.addEventListener('resize', this.onWindowResize.bind(this));
-    }
+        document.addEventListener('keydown', this.handleKeyDown.bind(this));
 
+    }
+    handleKeyDown(event) {
+        if (event.key === 't' || event.key === 'T') {
+            // UIManager にコマンド入力欄を表示するように指示
+            this.uiManager.showCommandInput();
+            console.log("T key pressed. Showing command input.");
+        }
+    }
+    
     onWindowResize() {
         this.player.camera.aspect = window.innerWidth / window.innerHeight;
         this.player.camera.updateProjectionMatrix();

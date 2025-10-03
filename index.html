@@ -34,6 +34,9 @@
         margin-top: 5px;
         color: #ffff00;
       }
+
+      /* --- 追加: コマンド入力欄のスタイル --- */
+
       #loading {
         position: fixed;
         top: 0;
@@ -69,6 +72,52 @@
         display: flex;
         align-items: center;
       }
+      #commandConsole {
+        position: absolute;
+        bottom: 10px;
+        left: 10px;
+        width: calc(100% - 20px); /* 左右10pxのマージンを引く */
+        z-index: 1000;
+        pointer-events: none; /* 親はイベントを受け取らない */
+      }
+
+      #commandResult {
+        background-color: rgba(0, 0, 0, 0.7);
+        color: #ffff00; /* 結果は黄色で表示 */
+        padding: 5px;
+        border-radius: 3px;
+        font-family: monospace;
+        font-size: 14px;
+        margin-bottom: 5px; /* 入力欄との隙間 */
+        display: none; /* 初期状態は非表示 */
+        pointer-events: auto; /* 結果表示時はイベントを受け取る (例: リンクなど) */
+      }
+
+      #commandInputWrapper {
+        background-color: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 5px;
+        border-radius: 3px;
+        font-family: monospace;
+        font-size: 14px;
+        display: none; /* 初期状態は非表示 */
+        pointer-events: auto; /* 入力欄はマウスイベントを受ける */
+      }
+
+      #commandInput {
+        width: 100%;
+        background-color: rgba(0, 0, 0, 0.9);
+        color: white;
+        border: none;
+        padding: 5px;
+        font-family: monospace;
+        font-size: 14px;
+      }
+
+      #commandInput:focus {
+        outline: none;
+        background-color: rgba(50, 50, 50, 0.9);
+      }
     </style>
   </head>
   <body>
@@ -90,7 +139,6 @@
     </div>
 
     <div id="canvasWrapper">
-      <canvas id="gameCanvas" style="pointer-events: auto;" tabindex="0"></canvas>
     </div>
 
     <div id="ui">
@@ -100,6 +148,14 @@
       <div id="fpsCounter">FPS: 0</div>
       <div id="biomeInfo">Biome: Unknown</div>
       <div id="message"></div>
+      <div id="gameTime">Game Time: 00:00</div>
+    </div>
+
+    <div id="commandConsole">
+      <div id="commandResult"></div> <!-- コマンド実行結果表示欄 -->
+      <div id="commandInputWrapper">
+        <input type="text" id="commandInput" placeholder="Enter command (/ver, /biome, /time, ...)">
+      </div>
     </div>
 
     <script type="importmap">

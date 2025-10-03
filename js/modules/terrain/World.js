@@ -12,7 +12,7 @@ export class World {
         this.chunks = new Map();
         this.CHUNK_SIZE = 32;
         this.RENDER_DISTANCE = 2;
-
+        this.gameTime = 0;
         // BiomeManager を初期化
         this.biomeManager = new BiomeManager();
 
@@ -212,4 +212,13 @@ export class World {
     updatePhysics(deltaTime) {
         this.physicsWorld.update(deltaTime);
     }
+    setGameTime(normalizedTime) {
+        if (typeof normalizedTime === 'number' && normalizedTime >= 0.0 && normalizedTime <= 1.0) {
+            this.gameTime = normalizedTime;
+            console.log(`Game time set to ${normalizedTime.toFixed(4)} (${Math.floor(normalizedTime * 24)}:${Math.floor((normalizedTime * 24 - Math.floor(normalizedTime * 24)) * 60).toString().padStart(2, '0')})`);
+        } else {
+            console.error("Invalid normalized time for setGameTime. Must be a number between 0.0 and 1.0.");
+        }
+    }
+
 }

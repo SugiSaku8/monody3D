@@ -12,6 +12,10 @@ export class UIManager {
         this.commandInputElement = document.getElementById('commandInput');
         // --- 追加 ここまて ---
         this.messageTimeout = null;
+        this.commandConsole = document.getElementById('commandConsole');
+        this.commandResultElement = document.getElementById('commandResult');
+        this.commandInputElement = document.getElementById('commandInput');
+        this.commandInputWrapper = document.getElementById('commandInputWrapper');
     }
 
     update(player) {
@@ -49,6 +53,66 @@ export class UIManager {
     }
     // --- 修正 ここまて ---
 
+    // --- 追加: コマンド入力欄を表示するメソッド ---
+    showCommandInput() {
+        if (this.commandConsole && this.commandInputWrapper) {
+            this.commandConsole.style.display = 'block'; // 親要素を表示
+            this.commandInputWrapper.style.display = 'block'; // 入力欄を表示
+            this.commandInputElement.focus(); // 入力欄にフォーカスを当てる
+            console.log("Command input shown and focused.");
+        } else {
+            console.warn("Command console or input wrapper element not found.");
+        }
+    }
+    // --- 追加 ここまて ---
+
+    // --- 追加: コマンド入力欄を非表示にするメソッド ---
+    hideCommandInput() {
+        if (this.commandConsole && this.commandInputWrapper) {
+            this.commandInputWrapper.style.display = 'none'; // 入力欄を非表示
+            // 親要素 #commandConsole は、結果表示のために残す場合があるため、
+            // 必要に応じて this.commandConsole.style.display = 'none'; とする
+            // ここでは、結果表示が終わったら親も非表示にする
+            if (this.commandResultElement.style.display === 'none') {
+                 this.commandConsole.style.display = 'none'; // 結果も非表示なら親も非表示
+            }
+            this.commandInputElement.value = ''; // 入力欄をクリア
+            console.log("Command input hidden.");
+        } else {
+            console.warn("Command console or input wrapper element not found.");
+        }
+    }
+    // --- 追加 ここまて ---
+
+    // --- 追加: コマンド実行結果を表示するメソッド ---
+    displayCommandResult(text) {
+        if (this.commandResultElement) {
+            this.commandResultElement.textContent = text;
+            this.commandResultElement.style.display = 'block'; // 結果表示欄を表示
+
+            // 親要素も表示
+            if (this.commandConsole) {
+                this.commandConsole.style.display = 'block';
+            }
+
+            // 以前のタイムアウトをクリア
+            if (this.commandResultTimeout) {
+                clearTimeout(this.commandResultTimeout);
+            }
+
+            // 一定時間後に結果を非表示にする
+            this.commandResultTimeout = setTimeout(() => {
+                this.commandResultElement.style.display = 'none';
+                // 結果が非表示になったら、入力欄も非表示 (親要素も非表示)
+                this.hideCommandInput();
+                this.commandResultTimeout = null;
+            }, 5000); // 5秒間表示
+        } else {
+            console.warn("Command result element not found.");
+        }
+    }
+    // --- 追加 ここまて ---
+
     // --- 追加: コマンド入力欄のイベントリスナーを設定するメソッド ---
     setupCommandInputListener(commandManager) {
         if (this.commandInputElement && commandManager) {
@@ -60,14 +124,20 @@ export class UIManager {
                     } else if (inputValue !== '') {
                         // 通常のチャットメッセージ (例: 他のプレイヤーに送信)
                         console.log("Chat message:", inputValue);
-                        this.displayMessage(`You: ${inputValue}`);
+                        this.displayMessage(`You: ${inputValue}`); // 汎用メッセージ欄に表示
                     }
                     this.commandInputElement.value = ''; // 入力欄をクリア
+                    this.hideCommandInput(); // 入力欄を非表示
                 }
+                // --- 追加: Escapeキーで入力欄を閉じる ---
+                else if (event.key === 'Escape') {
+                    this.commandInputElement.value = ''; // 入力欄をクリア
+                    this.hideCommandInput(); // 入力欄を非表示
+                }
+                // --- 追加 ここまて ---
             });
         } else {
             console.warn("Command input element or CommandManager not found. Skipping command input listener setup.");
         }
     }
-    // --- 追加 ここまて ---
 }
