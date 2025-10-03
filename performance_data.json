@@ -554,5 +554,60 @@
     "totalLoadTimeMs": 1544.2000000011176,
     "timestamp": "2025-10-03T10:16:55.265Z",
     "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 1248.199999999255,
+    "timestamp": "2025-10-03T10:22:24.446Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 1513.2000000011176,
+    "timestamp": "2025-10-03T10:22:29.252Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 2352.7000000011176,
+    "timestamp": "2025-10-03T10:30:19.274Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 1945.199999999255,
+    "timestamp": "2025-10-03T10:30:41.211Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 2117.4000000003725,
+    "timestamp": "2025-10-03T10:30:55.606Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 1317.9000000003725,
+    "timestamp": "2025-10-03T10:30:58.356Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 1583.2999999988824,
+    "timestamp": "2025-10-03T10:38:38.511Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 1735.7000000011176,
+    "timestamp": "2025-10-03T10:41:27.374Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 1717,
+    "timestamp": "2025-10-03T10:41:29.974Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 2911.599999997765,
+    "timestamp": "2025-10-03T11:14:47.083Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+  },
+  {
+    "totalLoadTimeMs": 3077.300000000745,
+    "timestamp": "2025-10-03T11:14:51.311Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
   }
 ]

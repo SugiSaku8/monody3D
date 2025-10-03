@@ -32,7 +32,10 @@ export class JungleTree extends Tree { // Tree クラスを継承
         }
 
         // ジャングルでは木の密度を高くする
-        const numTrees = Math.floor(5 + Math.random() * 10); // 5~14本
+        // --- 修正: チャンク内の木の数を制限 (パフォーマンス対策) ---
+        const maxTreesPerChunk = 32; // チャンクあたりの最大木の数
+        const numTrees = Math.min(maxTreesPerChunk, Math.floor(5 + Math.random() * 10)); // 5~14本
+        // --- 修正 ここまて ---
 
         for (let i = 0; i < numTrees; i++) {
             const localX = Math.random() * chunkSize;
@@ -52,22 +55,20 @@ export class JungleTree extends Tree { // Tree クラスを継承
                 localZ - chunkSize / 2
             );
 
-            // --- 修正: World.js 経由でチャンクに追加 ---
             this.world.addTreeToChunk(cx, cy, cz, treeGroup);
-            // --- 修正 ここまて ---
         }
     }
 
-    // --- 修正: createRealisticTree メソッド (Tree.js からコピー・修正) ---
+    // --- 修正: リアルなジャングルの木を生成するメソッド (葉っぱの量増加・自然な配置・丸い形状) ---
     createRealisticTree(groundY) {
         const treeGroup = new THREE.Group();
 
         // ジャングルの木の全体的なパラメータ (Tree.js よりもさらに大きく・複雑に)
         const treeHeight = 8 + Math.random() * 8; // 8.0 から 16.0
         const trunkHeight = treeHeight * (0.5 + Math.random() * 0.2); // 幹の高さ: 全体の50~70%
-        const trunkRadiusBottom = 0.3 + Math.random() * 0.2; // 幹の下部の太さ (0.3~0.5)
-        const trunkRadiusTop = trunkRadiusBottom * (0.7 + Math.random() * 0.2); // 幹の上部の太さ (70~90%)
-        const numBranches = 4 + Math.floor(Math.random() * 4); // 枝の数: 4~7本
+        const trunkRadiusBottom = 0.3 + Math.random() * 0.2; // 幹の太さ (0.3~0.5)
+        const trunkRadiusTop = trunkRadiusBottom * (0.7 + Math.random() * 0.2); // 幹の上部は細く (70~90%)
+        const numBranches = 4 + Math.floor(Math.random() * 3); // 枝の数: 4~6本
 
         // --- 修正: 幹の生成 (Tree.js と同様) ---
         const trunkGeometry = new THREE.CylinderGeometry(trunkRadiusTop, trunkRadiusBottom, trunkHeight, 8);
@@ -87,7 +88,7 @@ export class JungleTree extends Tree { // Tree クラスを継承
         // --- 修正: 枝の生成と葉っぱの配置 (Tree.js と同様) ---
         const branchLeafGroups = []; // 枝ごとの葉っぱグループを保持
         for (let i = 0; i < numBranches; i++) {
-            // 幹の途中 (20%~80%) から枝を生やす
+            // 幹の上部 20-80% の高さに枝を生やす
             const branchStartHeightRatio = 0.2 + Math.random() * 0.6;
             const branchStartY = trunkHeight * branchStartHeightRatio + groundY;
 
@@ -122,7 +123,7 @@ export class JungleTree extends Tree { // Tree クラスを継承
             branch.receiveShadow = true;
             treeGroup.add(branch);
 
-            // --- 修正: 枝ごとの葉っぱの塊を生成・配置 (Tree.js からコピー) ---
+            // --- 修正: 枝ごとの葉っぱグループを生成 (葉っぱの量増加・自然な配置) ---
             const branchLeafGroup = this.createLeafGroupForBranch(branch, branchLength, branchDirection, groundY);
             if (branchLeafGroup) {
                 treeGroup.add(branchLeafGroup);
@@ -132,7 +133,7 @@ export class JungleTree extends Tree { // Tree クラスを継承
         }
         // --- 修正 ここまて ---
 
-        // --- 修正: 幹の上部にも葉っぱの塊を生成・配置 (Tree.js からコピー) ---
+        // --- 修正: 幹の上部にも葉っぱの塊を生成 (葉っぱの量増加・自然な配置・丸い形状) ---
         const topLeafGroup = this.createLeafGroupForTop(trunk, trunkHeight, groundY);
         if (topLeafGroup) {
             treeGroup.add(topLeafGroup);
@@ -144,43 +145,59 @@ export class JungleTree extends Tree { // Tree クラスを継承
     }
     // --- 修正 ここまて ---
 
-    // --- 追加: 茶色系の幹の色を取得 (Tree.js からコピー) ---
     getTrunkColor() {
         const hue = 0.08 + Math.random() * 0.05; // 茶色付近 (0.0 = 赤, 0.33 = 緑, 0.66 = 青)
         const saturation = 0.4 + Math.random() * 0.2; // 彩度
         const lightness = 0.15 + Math.random() * 0.15; // 明るさ
         return new THREE.Color().setHSL(hue, saturation, lightness);
     }
-    // --- 追加 ここまて ---
 
-    // --- 追加: 枝ごとの葉っぱグループを生成 (Tree.js からコピー) ---
+    // --- 修正: 枝ごとの葉っぱグループを生成 (葉っぱの量増加・自然な配置) ---
     createLeafGroupForBranch(branch, branchLength, branchDirection, groundY) {
         const leafGroup = new THREE.Group();
 
         // 枝の先端に葉っぱの塊を配置
-        const numLeavesAtTip = 20 + Math.floor(Math.random() * 15); // 20~34枚 (Tree.js より多い)
+        // --- 修正: 葉っぱの数を増やす (JungleTree 用) ---
+        const numLeavesAtTip = 40 + Math.floor(Math.random() * 30); // 40~69枚 (Tree.js より多い)
+        // --- 修正 ここまて ---
         const tipPosition = branch.position.clone().add(branchDirection.clone().multiplyScalar(branchLength / 2));
 
         for (let i = 0; i < numLeavesAtTip; i++) {
             // 葉っぱの位置 (枝の先端付近にランダム配置)
+            // --- 修正: 球状の分布に変更 (JungleTree 用) ---
+            const u = Math.random();
+            const v = Math.random();
+            const theta = u * 2.0 * Math.PI;
+            const phi = Math.acos(2.0 * v - 1.0);
+            const r = Math.cbrt(Math.random()) * 1.0; // 半径を 1.0 に制限 (Tree.js より広め)
+            const sinTheta = Math.sin(theta);
+            const cosTheta = Math.cos(theta);
+            const sinPhi = Math.sin(phi);
+            const cosPhi = Math.cos(phi);
+
             const offset = new THREE.Vector3(
-                (Math.random() - 0.5) * 1.2, // X方向に ±0.6 (Tree.js より広め)
-                (Math.random() - 0.5) * 1.2, // Y方向に ±0.6 (Tree.js より広め)
-                (Math.random() - 0.5) * 1.2  // Z方向に ±0.6 (Tree.js より広め)
+                r * sinPhi * cosTheta,
+                r * sinPhi * sinTheta,
+                r * cosPhi
             );
+            // --- 修正 ここまて ---
             const leafPosition = tipPosition.clone().add(offset);
 
             // 葉っぱのメッシュ (InstancedMesh を使用)
-            const leafMesh = new THREE.Mesh(this.leafGeometry, this.leafMaterial); // Tree.js で定義済み
+            const leafMesh = new THREE.Mesh(this.leafGeometry, this.leafMaterial);
             leafMesh.position.copy(leafPosition);
             // 葉っぱの回転 (枝の方向に合わせる + ランダム性)
+            // --- 修正: 回転の計算を改善 (JungleTree 用) ---
             const leafRotation = branchDirection.clone().applyAxisAngle(
                 new THREE.Vector3(Math.random(), Math.random(), Math.random()).normalize(),
                 (Math.random() - 0.5) * Math.PI
             );
             leafMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), leafRotation); // 平面の法線を枝の方向に
+            // --- 修正 ここまて ---
             // 葉っぱのスケール (サイズにランダム性)
-            const leafScale = 1.0 + Math.random() * 0.5; // Tree.js より少し大きい (1.0~1.5)
+            // --- 修正: スケールを大きく (JungleTree 用) ---
+            const leafScale = 1.2 + Math.random() * 0.6; // 1.2~1.8 (Tree.js より大きい)
+            // --- 修正 ここまて ---
             leafMesh.scale.set(leafScale, leafScale, leafScale);
 
             leafMesh.castShadow = true; // 葉っぱも影を落とす
@@ -190,36 +207,57 @@ export class JungleTree extends Tree { // Tree クラスを継承
 
         return leafGroup;
     }
-    // --- 追加 ここまて ---
+    // --- 修正 ここまて ---
 
-    // --- 追加: 幹の上部の葉っぱグループを生成 (Tree.js からコピー) ---
+    // --- 修正: 幹の上部の葉っぱグループを生成 (葉っぱの量増加・自然な配置・丸い形状) ---
     createLeafGroupForTop(trunk, trunkHeight, groundY) {
         const leafGroup = new THREE.Group();
 
         // 幹の上部に葉っぱの塊を配置
-        const numLeavesAtTop = 30 + Math.floor(Math.random() * 20); // 30~49枚 (Tree.js より多い)
+        // --- 修正: 葉っぱの数を増やす (JungleTree 用) ---
+        const numLeavesAtTop = 70 + Math.floor(Math.random() * 40); // 70~109枚 (Tree.js より多い)
+        // --- 修正 ここまて ---
         const topPosition = new THREE.Vector3(0, trunkHeight + groundY, 0);
 
+        // --- 修正: 木全体を包む球状の空間に葉っぱを配置 (JungleTree 用) ---
+        const canopyRadius = 2.0 + trunkHeight * 0.4; // 樹冠の半径 (Tree.js より大きい)
+        const canopyCenterY = trunkHeight + groundY + canopyRadius * 0.3; // 樹冠の中心Y (やや上にずらす)
+        // --- 修正 ここまて ---
+
         for (let i = 0; i < numLeavesAtTop; i++) {
-            // 葉っぱの位置 (幹の上部付近にランダム配置)
-            const offset = new THREE.Vector3(
-                (Math.random() - 0.5) * 2.0, // X方向に ±1.0 (Tree.js より広め)
-                (Math.random() - 0.5) * 1.2, // Y方向に ±0.6 (Tree.js より広め)
-                (Math.random() - 0.5) * 2.0  // Z方向に ±1.0 (Tree.js より広め)
+            // --- 修正: 球状の分布に変更 (JungleTree 用) ---
+            const u = Math.random();
+            const v = Math.random();
+            const theta = u * 2.0 * Math.PI;
+            const phi = Math.acos(2.0 * v - 1.0);
+            const r = Math.cbrt(Math.random()) * canopyRadius; // 半径を樹冠の半径に制限
+            const sinTheta = Math.sin(theta);
+            const cosTheta = Math.cos(theta);
+            const sinPhi = Math.sin(phi);
+            const cosPhi = Math.cos(phi);
+
+            const leafPosition = new THREE.Vector3(
+                r * sinPhi * cosTheta,
+                r * sinPhi * sinTheta + canopyCenterY, // 樹冠の中心Yにずらす
+                r * cosPhi
             );
-            const leafPosition = topPosition.clone().add(offset);
+            // --- 修正 ここまて ---
 
             // 葉っぱのメッシュ (InstancedMesh を使用)
-            const leafMesh = new THREE.Mesh(this.leafGeometry, this.leafMaterial); // Tree.js で定義済み
+            const leafMesh = new THREE.Mesh(this.leafGeometry, this.leafMaterial);
             leafMesh.position.copy(leafPosition);
             // 葉っぱの回転 (上方向に + ランダム性)
+            // --- 修正: 回転の計算を改善 (JungleTree 用) ---
             const leafRotation = new THREE.Vector3(0, 1, 0).applyAxisAngle(
                 new THREE.Vector3(Math.random(), 0, Math.random()).normalize(),
                 (Math.random() - 0.5) * Math.PI
             );
             leafMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), leafRotation); // 平面の法線を上方向に
+            // --- 修正 ここまて ---
             // 葉っぱのスケール (サイズにランダム性)
-            const leafScale = 1.2 + Math.random() * 0.6; // Tree.js より少し大きい (1.2~1.8)
+            // --- 修正: スケールを大きく (JungleTree 用) ---
+            const leafScale = 1.4 + Math.random() * 0.8; // 1.4~2.2 (Tree.js より大きい)
+            // --- 修正 ここまて ---
             leafMesh.scale.set(leafScale, leafScale, leafScale);
 
             leafMesh.castShadow = true; // 葉っぱも影を落とす
@@ -229,5 +267,5 @@ export class JungleTree extends Tree { // Tree クラスを継承
 
         return leafGroup;
     }
-    // --- 追加 ここまて ---
+    // --- 修正 ここまて ---
 }
