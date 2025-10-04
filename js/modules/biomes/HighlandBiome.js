@@ -67,4 +67,9 @@ export class HighlandBiome extends Biome {
   getDescription() {
       return "A harsh biome found at high altitudes, characterized by steep terrain, rocky surfaces, and sparse vegetation adapted to thin air.";
   }
+  getFlowers() {
+    // this.config.flowerTypes を返す
+    // 親クラスの getFlowers (フォールバック) は呼び出さない
+    return this.config.flowerTypes || [];
+}
 }

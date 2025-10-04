@@ -34,4 +34,9 @@ export class DesertBiome extends Biome {
   getObjects() {
     return this.config.objectTypes;
   }
+  getFlowers() {
+    // this.config.flowerTypes を返す
+    // 親クラスの getFlowers (フォールバック) は呼び出さない
+    return this.config.flowerTypes || [];
+}
 }

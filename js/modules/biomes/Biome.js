@@ -268,7 +268,16 @@ export class Biome {
         density: grassConfig.density || 0,
         color: grassConfig.color || new THREE.Color(0x228B22),
     };
+    // --- 追加: 花と石のデフォルト定義 ---
+    this.flowerConfig = [
+        { type: 'Violet', density: 0.1, properties: { color: 0x8A2BE2 } } // デフォルト: スミレ (低密度)
+    ];
+    this.stoneConfig = [
+        { type: 'Granite', density: 0.05, properties: { color: 0x808080 } } // デフォルト: 花崗岩 (低密度)
+    ];
+    // --- 追加 ここまて ---
   }
+
 
   getHeight(x, z) {
     return 0;
@@ -361,7 +370,13 @@ export class Biome {
 
   getTraits() {
       return [];
-  }
+  } 
+  getStones() {
+    // フォールバック用のデフォルトの石の定義を返す
+    return [
+        { type: 'Granite', density: 0.05, properties: { color: 0x808080 } } // デフォルト: 花崗岩 (低密度)
+    ];
+}
 
   getDescription() {
       return `A ${this.classification} biome.`;

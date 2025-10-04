@@ -67,4 +67,9 @@ export class TundraBiome extends Biome {
   getDescription() {
       return "A frozen biome with short growing seasons, where only hardy plants like mosses and lichens can survive.";
   }
+  getFlowers() {
+    // this.config.flowerTypes を返す
+    // 親クラスの getFlowers (フォールバック) は呼び出さない
+    return this.config.flowerTypes || [];
+}
 }

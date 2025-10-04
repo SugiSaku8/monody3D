@@ -47,7 +47,11 @@ export class HotDesertBiome extends Biome {
     }
     return height * (this.config.heightScale || 0.5) * 5; // スケールを小さくして平坦に
   }
-
+  getFlowers() {
+    // this.config.flowerTypes を返す
+    // 親クラスの getFlowers (フォールバック) は呼び出さない
+    return this.config.flowerTypes || [];
+}
   getMaterial(x, z) {
     const material = super.getMaterial(x, z);
     if (material && material.uniforms) {

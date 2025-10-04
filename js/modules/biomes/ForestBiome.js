@@ -26,6 +26,10 @@ export class ForestBiome extends Biome {
     const perlin = new ImprovedNoise();
     return perlin.noise(x * 0.02, 0, z * 0.02) * this.config.heightScale * 10;
   }
-
+  getFlowers() {
+    // this.config.flowerTypes を返す
+    // 親クラスの getFlowers (フォールバック) は呼び出さない
+    return this.config.flowerTypes || [];
+}
   // getMaterial は親クラスのものを使用
 }

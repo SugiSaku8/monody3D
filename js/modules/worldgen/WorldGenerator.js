@@ -11,6 +11,8 @@ import { Fern } from './features/Fern.js';
 import { Cactus } from './features/Cactus.js';
 import { DeciduousTree } from './features/DeciduousTree.js';
 import { ConiferTree } from './features/ConiferTree.js';
+import { Flower } from './features/Flower.js'; // 追加
+import { Stone } from './features/Stone.js';  
 // --- 追加 ここまで ---
 
 export class WorldGenerator {
@@ -30,6 +32,8 @@ export class WorldGenerator {
         this.cactusFeature = new Cactus(this.world, this.biomeManager, this.physicsWorld);
         this.deciduousTreeFeature = new DeciduousTree(this.world, this.biomeManager, this.physicsWorld);
         this.coniferTreeFeature = new ConiferTree(this.world, this.biomeManager, this.physicsWorld);
+        this.flowerFeature = new Flower(this.world, this.biomeManager, this.physicsWorld); // 追加
+        this.stoneFeature = new Stone(this.world, this.biomeManager, this.physicsWorld);  
         // ... (他のFeatureも同様にインスタンス化)
         // --- 追加 ここまて ---
     }
@@ -49,6 +53,8 @@ export class WorldGenerator {
         this.cactusFeature.generateInChunk(chunkX, chunkY, chunkZ, chunkSize);
         this.deciduousTreeFeature.generateInChunk(chunkX, chunkY, chunkZ, chunkSize);
         this.coniferTreeFeature.generateInChunk(chunkX, chunkY, chunkZ, chunkSize);
+        this.flowerFeature.generateInChunk(chunkX, chunkY, chunkZ, chunkSize); // 追加
+        this.stoneFeature.generateInChunk(chunkX, chunkY, chunkZ, chunkSize); 
         // ... (他のFeatureも生成)
         // --- 追加 ここまて ---
 

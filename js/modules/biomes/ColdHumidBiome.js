@@ -67,4 +67,9 @@ export class ColdHumidBiome extends Biome {
   getDescription() {
       return "A biome with warm, humid summers and cold, snowy winters, dominated by coniferous forests.";
   }
+  getFlowers() {
+    // this.config.flowerTypes を返す
+    // 親クラスの getFlowers (フォールバック) は呼び出さない
+    return this.config.flowerTypes || [];
+}
 }

@@ -180,6 +180,43 @@ export class World {
             console.warn(`Chunk (${cx}, ${cy}, ${cz}) not found when adding object.`);
         }
     }
+
+    // --- 追加: addFlowerToChunk メソッド ---
+    /**
+     * 指定されたチャンクに花の InstancedMesh を追加します。
+     * @param {number} cx - チャンクX座標
+     * @param {number} cy - チャンクY座標 (通常 0)
+     * @param {number} cz - チャンクZ座標
+     * @param {THREE.InstancedMesh} flowerInstancedMesh - 花の InstancedMesh
+     */
+    addFlowerToChunk(cx, cy, cz, flowerInstancedMesh) {
+        const chunkKey = this.getChunkKey(cx, cy, cz);
+        const chunk = this.chunks.get(chunkKey);
+        if (chunk) {
+            chunk.addObject(flowerInstancedMesh);
+        } else {
+            console.warn(`Chunk (${cx}, ${cy}, ${cz}) not found when adding flower.`);
+        }
+    }
+    // --- 追加 ここまて ---
+
+    // --- 追加: addStoneToChunk メソッド ---
+    /**
+     * 指定されたチャンクに石の InstancedMesh を追加します。
+     * @param {number} cx - チャンクX座標
+     * @param {number} cy - チャンクY座標 (通常 0)
+     * @param {number} cz - チャンクZ座標
+     * @param {THREE.InstancedMesh} stoneInstancedMesh - 石の InstancedMesh
+     */
+    addStoneToChunk(cx, cy, cz, stoneInstancedMesh) {
+        const chunkKey = this.getChunkKey(cx, cy, cz);
+        const chunk = this.chunks.get(chunkKey);
+        if (chunk) {
+            chunk.addObject(stoneInstancedMesh);
+        } else {
+            console.warn(`Chunk (${cx}, ${cy}, ${cz}) not found when adding stone.`);
+        }
+    }
     // --- 追加 ここまて ---
 
     // --- 追加: addGrassToChunk メソッド (Grass.js 用) ---
