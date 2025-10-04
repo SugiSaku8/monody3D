@@ -6,133 +6,98 @@ export class Grass {
         this.world = world;
         this.biomeManager = biomeManager;
         this.physicsWorld = physicsWorld;
-
-        // 草の形状 (平面)
-        this.grassGeometry = new THREE.PlaneGeometry(0.08, 0.2);
-
-        // 草のマテリアル
-        this.grassMaterial = new THREE.MeshStandardMaterial({
-            color: new THREE.Color(0x228B22), // デフォルト色 (getGrassDataで上書きされる)
-            roughness: 0.9,
-            metalness: 0.0,
-            side: THREE.DoubleSide,
-            transparent: true,
-            opacity: 0.9,
-            wireframe: false
-        });
     }
 
     generateInChunk(cx, cy, cz, chunkSize) {
         if (cy !== 0) return;
 
-        const biome = this.biomeManager.getBiomeAt(
-            cx * chunkSize + chunkSize / 2,
-            cz * chunkSize + chunkSize / 2
-        );
+        const chunkKey = `${cx},${cy},${cz}`;
+        const chunk = this.world.getChunkAt(cx, cy, cz);
 
-        const grassData = biome.getGrassData();
-
-        if (grassData.density <= 0) return;
-
-        // --- 修正: InstancedMesh を使用して草を生成 ---
-        const grassPositions = this.calculateGrassPositionsNatural(cx, cz, chunkSize, grassData); // メソッド名を変更
-        const numGrass = grassPositions.length;
-
-        if (numGrass > 0) {
-            const instancedMesh = new THREE.InstancedMesh(this.grassGeometry, this.grassMaterial, numGrass);
-
-            const matrix = new THREE.Matrix4();
-            for (let i = 0; i < numGrass; i++) {
-                const pos = grassPositions[i].position;
-                const rot = grassPositions[i].rotation;
-                const scl = grassPositions[i].scale;
-                const col = grassPositions[i].color;
-
-                matrix.compose(pos, new THREE.Quaternion().setFromEuler(rot), scl);
-                instancedMesh.setMatrixAt(i, matrix);
-                instancedMesh.setColorAt(i, col);
-            }
-
-            instancedMesh.instanceMatrix.needsUpdate = true;
-            if (instancedMesh.instanceColor) {
-                instancedMesh.instanceColor.needsUpdate = true;
-            }
-
-            this.world.addGrassToChunk(cx, cy, cz, instancedMesh);
+        if (!chunk) {
+            console.warn(`Chunk (${cx}, ${cy}, ${cz}) not found for Grass generation.`);
+            return;
         }
-        // --- 修正 ここまで ---
-    }
 
-    // --- 修正: より自然な草の配置を計算するメソッド ---
-    calculateGrassPositionsNatural(cx, cz, chunkSize, grassData) {
-        const grassDataList = [];
-        // チャンク内の草の総数を密度から計算
-        const totalArea = chunkSize * chunkSize;
-        const targetNumGrass = Math.floor(grassData.density * totalArea);
+        const worldCenterX = cx * chunkSize + chunkSize / 2;
+        const worldCenterZ = cz * chunkSize + chunkSize / 2;
+        const biome = this.biomeManager.getBiomeAt(worldCenterX, 0, worldCenterZ);
 
-        // 傾きの計算に使用するセグメント数 (以前のコードと同様)
-        const segments = 32;
-        const segmentSize = chunkSize / segments;
+        // 草の密度を取得 (Biome から)
+        const grassDensity = biome.getGrassData().density || 0;
 
-        for (let i = 0; i < targetNumGrass; i++) {
-            // チャンク内のランダムな位置を生成
+        if (grassDensity <= 0) return; // 草の密度が0以下なら生成しない
+
+        // 草のインスタンス数を計算
+        const numGrassInstances = Math.floor(grassDensity * chunkSize * chunkSize);
+
+        if (numGrassInstances <= 0) return;
+
+        // 草のジオメトリとマテリアルを定義
+        const grassGeometry = new THREE.PlaneGeometry(0.1, 0.3); // 細長い平面
+        const grassMaterial = new THREE.MeshStandardMaterial({
+            color: biome.getGrassData().color || new THREE.Color(0x228B22),
+            roughness: 0.9,
+            metalness: 0.0,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.9
+        });
+
+        // InstancedMesh を作成
+        const grassInstancedMesh = new THREE.InstancedMesh(grassGeometry, grassMaterial, numGrassInstances);
+        grassInstancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); // 更新頻度が低い場合は StaticDrawUsage でも可
+        grassInstancedMesh.castShadow = true;
+        grassInstancedMesh.receiveShadow = true;
+        // --- 追加: Frustum Culling を有効化 ---
+        grassInstancedMesh.frustumCulled = true;
+        // --- 追加 ここまて ---
+
+        // 各インスタンスの変換行列と色を設定
+        const matrix = new THREE.Matrix4();
+        const color = new THREE.Color();
+        for (let i = 0; i < numGrassInstances; i++) {
+            // チャンク内のランダムなローカル座標
             const localX = Math.random() * chunkSize;
             const localZ = Math.random() * chunkSize;
             const worldX = cx * chunkSize + localX;
             const worldZ = cz * chunkSize + localZ;
 
-            // 地形の高さを取得
-            const worldY = this.world.getWorldTerrainHeightAt(worldX, worldZ);
+            // 地形の高さを取得して、草のY座標を決定
+            const terrainHeight = this.world.getWorldTerrainHeightAt(worldX, worldZ);
 
-            // 傾きを計算 (この部分は以前のコードとほぼ同じ)
-            const nx = this.world.getWorldTerrainHeightAt(worldX + segmentSize, worldZ);
-            const nz = this.world.getWorldTerrainHeightAt(worldX, worldZ + segmentSize);
-            const currentHeight = worldY;
-            const slopeX = (nx - currentHeight) / segmentSize;
-            const slopeZ = (nz - currentHeight) / segmentSize;
-            const slopeMagnitude = Math.sqrt(slopeX * slopeX + slopeZ * slopeZ);
-            const maxSlopeForGrass = 0.5;
+            // 草の位置と回転を設定
+            const position = new THREE.Vector3(
+                localX - chunkSize / 2,
+                terrainHeight,
+                localZ - chunkSize / 2
+            );
+            const rotation = new THREE.Euler(
+                0,
+                Math.random() * Math.PI * 2, // Y軸回転 (ランダム)
+                0
+            );
+            const scale = new THREE.Vector3(
+                1.0,
+                1.0 + Math.random() * 0.5, // 高さにランダム性
+                1.0
+            );
 
-            // 傾きが緩やかであれば草を配置
-            if (slopeMagnitude < maxSlopeForGrass) {
-                const position = new THREE.Vector3(
-                    localX - chunkSize / 2,
-                    worldY,
-                    localZ - chunkSize / 2
-                );
+            matrix.compose(position, new THREE.Quaternion().setFromEuler(rotation), scale);
+            grassInstancedMesh.setMatrixAt(i, matrix);
 
-                // 回転 (Y軸を中心にランダム)
-                const rotation = new THREE.Euler(
-                    0,
-                    Math.random() * Math.PI * 2,
-                    0
-                );
-
-                // スケール (高さにランダム性)
-                const scale = new THREE.Vector3(
-                    1.0,
-                    0.8 + Math.random() * 0.4,
-                    1.0
-                );
-
-                // 色 (grassData.color にランダム性を加える)
-                const color = new THREE.Color().copy(grassData.color).offsetHSL(
-                    (Math.random() - 0.5) * 0.1,
-                    0,
-                    (Math.random() - 0.5) * 0.1
-                );
-
-                grassDataList.push({
-                    position: position,
-                    rotation: rotation,
-                    scale: scale,
-                    color: color
-                });
-            }
-            // 傾きが急な場合は、このループでの草の配置を諦めて、次のループで新しいランダム位置を試す
+            // 色にランダム性を加える
+            color.copy(biome.getGrassData().color || new THREE.Color(0x228B22));
+            color.offsetHSL((Math.random() - 0.5) * 0.1, 0, (Math.random() - 0.5) * 0.1);
+            grassInstancedMesh.setColorAt(i, color);
         }
 
-        return grassDataList;
+        grassInstancedMesh.instanceMatrix.needsUpdate = true;
+        if (grassInstancedMesh.instanceColor) {
+             grassInstancedMesh.instanceColor.needsUpdate = true;
+        }
+
+        // World に追加 (World.js の addGrassToChunk メソッド経由)
+        this.world.addGrassToChunk(cx, cy, cz, grassInstancedMesh);
     }
-    // --- 修正 ここまで ---
 }
